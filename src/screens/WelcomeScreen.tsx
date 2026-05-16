@@ -3,9 +3,9 @@ import { View, Text, Pressable } from 'react-native';
 import Svg, { Defs, Pattern, Rect, Circle, Path, G } from 'react-native-svg';
 import { theme } from '../theme';
 
-type Props = { onContinue: () => void };
+type Props = { onContinue: () => void; onInviteCode: () => void };
 
-export function WelcomeScreen({ onContinue }: Props) {
+export function WelcomeScreen({ onContinue, onInviteCode }: Props) {
   return (
     <View className="flex-1 bg-canvas px-6 pt-3 pb-7">
       <View className="flex-1 rounded-3xl overflow-hidden min-h-[260px]" style={{ backgroundColor: '#EDEAE1' }}>
@@ -64,7 +64,10 @@ export function WelcomeScreen({ onContinue }: Props) {
           >
             <Text className="text-canvas text-[15px] font-semibold tracking-[-0.2px]">Começar</Text>
           </Pressable>
-          <Pressable className="p-[14px] rounded-2xl border border-line items-center">
+          <Pressable
+            onPress={onInviteCode}
+            className="p-[14px] rounded-2xl border border-line items-center"
+          >
             <Text className="text-ink text-[15px] font-semibold">Tenho um código de convite</Text>
           </Pressable>
         </View>

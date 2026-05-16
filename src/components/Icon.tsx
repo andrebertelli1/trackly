@@ -19,7 +19,8 @@ type IconName =
   | 'chevron-left'
   | 'shield'
   | 'bolt'
-  | 'menu';
+  | 'menu'
+  | 'pin';
 
 type Props = {
   name: IconName;
@@ -178,6 +179,18 @@ export function Icon({ name, size = 22, color = '#000', filled = false }: Props)
           />
           <Circle cx={8} cy={17} r={1.2} fill={color} />
           <Circle cx={16} cy={17} r={1.2} fill={color} />
+        </Svg>
+      );
+    case 'pin':
+      return filled ? (
+        <Svg {...common}>
+          <Path fill={color} d="M12 2a7 7 0 0 1 7 7c0 5-7 13-7 13S5 14 5 9a7 7 0 0 1 7-7Z" />
+          <Circle cx={12} cy={9} r={2.5} fill="#fff" />
+        </Svg>
+      ) : (
+        <Svg {...common}>
+          <Path {...stroke} d="M12 2a7 7 0 0 1 7 7c0 5-7 13-7 13S5 14 5 9a7 7 0 0 1 7-7Z" />
+          <Circle cx={12} cy={9} r={2.5} {...stroke} />
         </Svg>
       );
   }

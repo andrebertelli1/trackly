@@ -3,6 +3,8 @@ import { View, Text, ScrollView, Pressable, TextInput } from 'react-native';
 import { theme } from '../theme';
 import { Avatar } from '../components/Avatar';
 import { Icon } from '../components/Icon';
+import { FadeIn } from '../components/FadeIn';
+import { PressScale } from '../components/PressScale';
 import { DRIVER } from '../data';
 
 type Msg = { who: 'me' | 'driver'; text: string; time: string; tag?: string };
@@ -17,7 +19,9 @@ const INITIAL: Msg[] = [
 
 const QUICK = ['Vou me atrasar', 'Já na porta', 'Pular hoje', 'Obrigada!'];
 
-export function ChatScreen() {
+type Props = { onBack?: () => void };
+
+export function ChatScreen({ onBack }: Props = {}) {
   const [msg, setMsg] = useState('');
   const [messages, setMessages] = useState<Msg[]>(INITIAL);
 
@@ -32,7 +36,9 @@ export function ChatScreen() {
     <View className="flex-1 bg-canvas">
       {/* Header */}
       <View className="flex-row items-center gap-3 px-5 pt-1 pb-[14px] bg-surface border-b border-line">
-        <Icon name="chevron-left" size={22} color={theme.text} />
+        <Pressable onPress={onBack} hitSlop={10}>
+          <Icon name="chevron-left" size={22} color={theme.text} />
+        </Pressable>
         <Avatar name={DRIVER.name} size={36} bg={DRIVER.color} />
         <View className="flex-1">
           <Text className="text-[15px] font-bold text-ink">{DRIVER.name}</Text>
@@ -51,7 +57,12 @@ export function ChatScreen() {
         </View>
       </View>
 
-      <ScrollView className="flex-1" contentContainerStyle={{ padding: 16, gap: 6 }}>
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{ padding: 16, gap: 6 }}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+      >
         <View className="self-center py-1 px-[10px] bg-surface-alt rounded-[10px] mb-[6px]">
           <Text className="text-[10px] text-ink-muted font-semibold tracking-[0.5px]">
             HOJE · VIAGEM DA MANHÃ
@@ -59,7 +70,9 @@ export function ChatScreen() {
         </View>
 
         {messages.map((m, i) => (
-          <Bubble key={i} m={m} />
+          <FadeIn key={i} duration={180} translate={6} style={{ flex: 0 }}>
+            <Bubble m={m} />
+          </FadeIn>
         ))}
 
         <View className="mt-2 flex-row flex-wrap gap-[6px]">
@@ -87,12 +100,19 @@ export function ChatScreen() {
             returnKeyType="send"
           />
         </View>
-        <Pressable
+        <PressScale
           onPress={() => send(msg)}
-          className="w-[38px] h-[38px] rounded-full bg-brand items-center justify-center"
+          style={{
+            width: 38,
+            height: 38,
+            borderRadius: 19,
+            backgroundColor: theme.base,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
         >
           <Text className="text-white text-lg font-bold -mt-[2px]">→</Text>
-        </Pressable>
+        </PressScale>
       </View>
     </View>
   );

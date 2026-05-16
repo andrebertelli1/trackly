@@ -19,7 +19,9 @@ const PREFS: { icon: PrefIcon; label: string; detail?: string }[] = [
   { icon: 'user', label: 'Pagamento e cobrança', detail: 'Visa ••4421' },
 ];
 
-export function ProfileScreen() {
+type Props = { onLinkVan?: () => void };
+
+export function ProfileScreen({ onLinkVan }: Props = {}) {
   return (
     <View className="flex-1 bg-canvas">
       <View className="px-5 pt-1 pb-4">
@@ -62,6 +64,58 @@ export function ProfileScreen() {
               <TagPill text="VAN VK-32" tone="base" />
             </View>
           ))}
+        </View>
+
+        <SectionLabel title="Vincular nova van" />
+        <Pressable
+          onPress={onLinkVan}
+          className="w-full bg-surface flex-row items-center"
+          style={{
+            paddingVertical: 14,
+            paddingHorizontal: 16,
+            borderRadius: 18,
+            borderWidth: 1,
+            borderStyle: 'dashed',
+            borderColor: theme.lineStrong,
+            gap: 14,
+          }}
+        >
+          <View
+            className="items-center justify-center"
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 13,
+              backgroundColor: `${theme.warm}1A`,
+            }}
+          >
+            <Icon name="bolt" size={22} color={theme.warm} />
+          </View>
+          <View className="flex-1">
+            <Text className="text-sm font-bold text-ink tracking-[-0.2px]">
+              Inserir código de convite
+            </Text>
+            <Text className="text-[11px] text-ink-muted mt-[2px] leading-[15px]">
+              Conecte sua conta à van e ao motorista da escola.
+            </Text>
+          </View>
+          <Icon name="chevron" size={16} color={theme.textFaint} />
+        </Pressable>
+
+        <View
+          className="mt-2 flex-row items-center bg-surface-alt"
+          style={{
+            paddingVertical: 10,
+            paddingHorizontal: 14,
+            borderRadius: 14,
+            gap: 10,
+          }}
+        >
+          <Icon name="check" size={14} color={theme.success} />
+          <Text className="flex-1 text-[11px] text-ink-muted">
+            <Text className="font-semibold text-ink">1 van vinculada</Text> · VK-32 · Motorista
+            Marcus T.
+          </Text>
         </View>
 
         <SectionLabel title="Contatos de confiança" />
