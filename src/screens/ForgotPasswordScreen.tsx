@@ -2,15 +2,57 @@ import React, { useState } from 'react';
 import { View, Text, Pressable, ScrollView } from 'react-native';
 import { theme } from '../theme';
 import { Icon } from '../components/Icon';
+import { PressScale } from '../components/PressScale';
 import { FieldLabel, TextField } from './LoginScreen';
+import { useAuth } from '../lib/auth';
 
 type Props = {
   onBack: () => void;
 };
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export function ForgotPasswordScreen({ onBack }: Props) {
+  const { resetPassword } = useAuth();
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSend = async () => {
+    if (busy) return;
+    setError(null);
+    const trimmed = email.trim();
+    if (!trimmed) {
+      setError('Informe seu e-mail.');
+      return;
+    }
+    if (!EMAIL_RE.test(trimmed)) {
+      setError('E-mail inválido.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await resetPassword(trimmed);
+      setSent(true);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleResend = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await resetPassword(email.trim());
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <View className="flex-1 bg-canvas">
@@ -49,20 +91,39 @@ export function ForgotPasswordScreen({ onBack }: Props) {
               <TextField
                 placeholder="voce@exemplo.com"
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={(t) => {
+                  setEmail(t);
+                  if (error) setError(null);
+                }}
                 keyboardType="email-address"
                 autoCapitalize="none"
               />
+              {error && (
+                <Text
+                  className="text-[11px] mt-[6px] ml-[2px]"
+                  style={{ color: theme.danger }}
+                >
+                  {error}
+                </Text>
+              )}
             </View>
 
-            <Pressable
-              onPress={() => setSent(true)}
-              className="mt-[18px] p-[14px] bg-ink rounded-2xl items-center"
+            <PressScale
+              onPress={handleSend}
+              disabled={busy}
+              style={{
+                marginTop: 18,
+                padding: 14,
+                backgroundColor: theme.text,
+                borderRadius: 16,
+                alignItems: 'center',
+                opacity: busy ? 0.6 : 1,
+              }}
             >
               <Text className="text-canvas text-[15px] font-bold tracking-[-0.2px]">
-                Enviar link de recuperação
+                {busy ? 'Enviando…' : 'Enviar link de recuperação'}
               </Text>
-            </Pressable>
+            </PressScale>
 
             <View
               className="mt-5 p-[11px] rounded-xl flex-row items-start"
@@ -131,12 +192,23 @@ export function ForgotPasswordScreen({ onBack }: Props) {
             </Text>
             <View className="mt-[14px] flex-row items-center">
               <Text className="text-xs text-ink-faint">Não recebeu em alguns minutos? </Text>
-              <Pressable hitSlop={6}>
-                <Text className="text-xs font-semibold" style={{ color: theme.base }}>
-                  Reenviar
+              <Pressable onPress={handleResend} hitSlop={6} disabled={busy}>
+                <Text
+                  className="text-xs font-semibold"
+                  style={{ color: theme.base, opacity: busy ? 0.5 : 1 }}
+                >
+                  {busy ? 'Enviando…' : 'Reenviar'}
                 </Text>
               </Pressable>
             </View>
+            {error && (
+              <Text
+                className="text-[11px] mt-[10px]"
+                style={{ color: theme.danger }}
+              >
+                {error}
+              </Text>
+            )}
           </View>
         )}
       </ScrollView>

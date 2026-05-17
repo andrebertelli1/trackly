@@ -4,6 +4,7 @@ import Svg, { Path } from 'react-native-svg';
 import { theme } from '../theme';
 import { Icon } from '../components/Icon';
 import { PressScale } from '../components/PressScale';
+import { useAuth } from '../lib/auth';
 
 type Props = {
   onBack: () => void;
@@ -14,9 +15,45 @@ type Props = {
 };
 
 export function LoginScreen({ onBack, onLogin, onRegister, onForgot, onDriverDemo }: Props) {
+  const { signIn, signInWithGoogle } = useAuth();
   const [email, setEmail] = useState('');
   const [pw, setPw] = useState('');
   const [show, setShow] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const [topError, setTopError] = useState<string | null>(null);
+
+  const handleEmail = async () => {
+    if (busy) return;
+    setTopError(null);
+    if (!email.trim() || !pw) {
+      setTopError('Informe e-mail e senha.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await signIn(email.trim(), pw);
+      onLogin();
+    } catch (e) {
+      setTopError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleGoogle = async () => {
+    if (busy) return;
+    setBusy(true);
+    setTopError(null);
+    try {
+      await signInWithGoogle();
+      onLogin();
+    } catch (e) {
+      setTopError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <View className="flex-1 bg-canvas">
@@ -38,10 +75,30 @@ export function LoginScreen({ onBack, onLogin, onRegister, onForgot, onDriverDem
           </Text>
         </View>
 
+        {topError && (
+          <View
+            className="mt-[14px] p-[11px] rounded-xl flex-row items-start"
+            style={{
+              gap: 10,
+              backgroundColor: `${theme.danger}15`,
+              borderWidth: 1,
+              borderColor: `${theme.danger}40`,
+            }}
+          >
+            <View style={{ marginTop: 1 }}>
+              <Icon name="shield" size={14} color={theme.danger} />
+            </View>
+            <Text className="flex-1 text-[12px] leading-[17px]" style={{ color: theme.danger }}>
+              {topError}
+            </Text>
+          </View>
+        )}
+
         <Pressable
-          onPress={onLogin}
+          onPress={handleGoogle}
+          disabled={busy}
           className="mt-[22px] p-[13px] bg-surface border border-line rounded-2xl flex-row items-center justify-center"
-          style={{ gap: 10 }}
+          style={{ gap: 10, opacity: busy ? 0.6 : 1 }}
         >
           <GoogleG size={18} />
           <Text className="text-[15px] font-semibold text-ink">Continuar com Google</Text>
@@ -92,16 +149,20 @@ export function LoginScreen({ onBack, onLogin, onRegister, onForgot, onDriverDem
         />
 
         <PressScale
-          onPress={onLogin}
+          onPress={handleEmail}
+          disabled={busy}
           style={{
             marginTop: 18,
             padding: 14,
             backgroundColor: theme.text,
             borderRadius: 16,
             alignItems: 'center',
+            opacity: busy ? 0.6 : 1,
           }}
         >
-          <Text className="text-canvas text-[15px] font-bold tracking-[-0.2px]">Entrar</Text>
+          <Text className="text-canvas text-[15px] font-bold tracking-[-0.2px]">
+            {busy ? 'Entrando…' : 'Entrar'}
+          </Text>
         </PressScale>
 
         <View className="mt-[18px] flex-row items-center justify-center">
@@ -126,7 +187,7 @@ export function LoginScreen({ onBack, onLogin, onRegister, onForgot, onDriverDem
             <Icon name="shield" size={16} color={theme.warm} />
           </View>
           <Text className="flex-1 text-[11px] text-ink-muted leading-[16px]">
-            Motoristas são cadastrados diretamente pela administração da escola — não por aqui.
+            Motoristas são cadastrados diretamente pela administração da escola.
           </Text>
         </View>
 

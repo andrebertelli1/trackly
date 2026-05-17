@@ -1,9 +1,11 @@
 import React from 'react';
-import { View, Text, ScrollView, Pressable } from 'react-native';
+import { View, Text, ScrollView, Pressable, Alert } from 'react-native';
 import { theme } from '../theme';
 import { KIDS } from '../data';
 import { Avatar } from '../components/Avatar';
 import { Icon } from '../components/Icon';
+import { useAuth } from '../lib/auth';
+import { useProfile } from '../lib/profile';
 
 type PrefIcon = 'bell' | 'shield' | 'phone' | 'user';
 
@@ -22,6 +24,24 @@ const PREFS: { icon: PrefIcon; label: string; detail?: string }[] = [
 type Props = { onLinkVan?: () => void };
 
 export function ProfileScreen({ onLinkVan }: Props = {}) {
+  const { user, signOut } = useAuth();
+  const { data: profile } = useProfile();
+  const displayName = profile?.full_name || user?.email || 'Sua conta';
+  const displayPhone = profile?.phone || user?.email || '';
+
+  const [signingOut, setSigningOut] = React.useState(false);
+  const handleSignOut = async () => {
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      await signOut();
+    } catch (e) {
+      console.warn('[signOut]', e);
+      Alert.alert('Erro ao sair', (e as Error).message);
+      setSigningOut(false);
+    }
+  };
+
   return (
     <View className="flex-1 bg-canvas">
       <View className="px-5 pt-1 pb-4">
@@ -30,12 +50,10 @@ export function ProfileScreen({ onLinkVan }: Props = {}) {
 
       <ScrollView className="flex-1" contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }}>
         <View className="bg-surface rounded-[20px] p-4 border border-line flex-row gap-[14px] items-center">
-          <Avatar name="Sara Vance" size={56} bg="#9F5BC0" />
+          <Avatar name={displayName} size={56} bg="#9F5BC0" />
           <View className="flex-1">
-            <Text className="text-[17px] font-bold text-ink">Sara Vance</Text>
-            <Text className="text-xs text-ink-muted mt-[1px]">
-              +55 11 95555 0142 · Verificada
-            </Text>
+            <Text className="text-[17px] font-bold text-ink">{displayName}</Text>
+            <Text className="text-xs text-ink-muted mt-[1px]">{displayPhone}</Text>
             <View className="flex-row gap-[6px] mt-[6px]">
               <TagPill text="VERIFICADA" tone="success" />
               <TagPill text="3 CRIANÇAS" tone="muted" />
@@ -153,6 +171,18 @@ export function ProfileScreen({ onLinkVan }: Props = {}) {
             </View>
           ))}
         </View>
+
+        <Pressable
+          onPress={handleSignOut}
+          disabled={signingOut}
+          hitSlop={8}
+          className="mt-[18px] p-[14px] rounded-2xl items-center"
+          style={{ backgroundColor: `${theme.danger}18`, opacity: signingOut ? 0.6 : 1 }}
+        >
+          <Text className="text-[14px] font-bold" style={{ color: theme.danger }}>
+            {signingOut ? 'Saindo…' : 'Sair da conta'}
+          </Text>
+        </Pressable>
       </ScrollView>
     </View>
   );
