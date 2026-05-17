@@ -2,18 +2,29 @@ import React, { useRef, useState } from 'react';
 import { View, Text, Pressable, ScrollView, TextInput } from 'react-native';
 import { theme } from '../theme';
 import { Icon } from '../components/Icon';
+import {
+  useValidateInviteCode,
+  InviteError,
+  type ValidatedInvite,
+} from '../lib/invite';
 
 type Props = {
   onBack: () => void;
-  onContinue: () => void;
+  /** Called after the user accepts the success state.
+   *  Receives the verified code AND the validated invite payload, so the next
+   *  step (post-signup linking, or the kid picker) can use it directly. */
+  onContinue: (code: string, invite: ValidatedInvite) => void;
 };
 
 const CODE_LEN = 6;
 
 export function InviteCodeScreen({ onBack, onContinue }: Props) {
   const [code, setCode] = useState<string[]>(Array(CODE_LEN).fill(''));
-  const [found, setFound] = useState(false);
+  const [result, setResult] = useState<ValidatedInvite | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const refs = useRef<(TextInput | null)[]>([]);
+  const validate = useValidateInviteCode();
+  const found = !!result;
 
   const handleChange = (i: number, v: string) => {
     const clean = v.replace(/[^A-Z0-9]/gi, '').toUpperCase().slice(0, 1);
@@ -22,6 +33,7 @@ export function InviteCodeScreen({ onBack, onContinue }: Props) {
       next[i] = clean;
       return next;
     });
+    if (error) setError(null);
     if (clean && i < CODE_LEN - 1) refs.current[i + 1]?.focus();
   };
 
@@ -30,6 +42,23 @@ export function InviteCodeScreen({ onBack, onContinue }: Props) {
   };
 
   const filled = code.every((c) => c.length === 1);
+  const busy = validate.isPending;
+  const codeString = code.join('');
+
+  const handleVerify = async () => {
+    if (!filled || busy) return;
+    setError(null);
+    try {
+      // Validation is always anonymous-safe; the actual linking happens on the
+      // next screen (picker) where the parent chooses which kid to attach.
+      const r = await validate.mutateAsync(codeString);
+      setResult(r);
+    } catch (e) {
+      const friendly =
+        e instanceof InviteError ? e.friendly : 'Não foi possível verificar o código.';
+      setError(friendly);
+    }
+  };
 
   return (
     <View className="flex-1 bg-canvas">
@@ -117,18 +146,30 @@ export function InviteCodeScreen({ onBack, onContinue }: Props) {
             </Text>
 
             <Pressable
-              onPress={filled ? () => setFound(true) : undefined}
-              disabled={!filled}
+              onPress={handleVerify}
+              disabled={!filled || busy}
               className="mt-[22px] p-[14px] rounded-2xl items-center"
-              style={{ backgroundColor: filled ? theme.text : theme.surfaceAlt }}
+              style={{
+                backgroundColor: filled ? theme.text : theme.surfaceAlt,
+                opacity: busy ? 0.6 : 1,
+              }}
             >
               <Text
                 className="text-[15px] font-bold tracking-[-0.2px]"
                 style={{ color: filled ? theme.canvas : theme.textFaint }}
               >
-                Verificar código
+                {busy ? 'Verificando…' : 'Verificar código'}
               </Text>
             </Pressable>
+
+            {error && (
+              <Text
+                className="text-[12px] mt-[10px] text-center"
+                style={{ color: theme.danger }}
+              >
+                {error}
+              </Text>
+            )}
 
             <View
               className="mt-[18px] p-[11px] rounded-xl flex-row items-center bg-surface border border-line"
@@ -192,10 +233,12 @@ export function InviteCodeScreen({ onBack, onContinue }: Props) {
                 </View>
                 <View className="flex-1">
                   <Text className="text-[15px] font-bold text-ink tracking-[-0.3px]">
-                    Colégio Greenfield
+                    {result?.school?.name ?? 'Escola'}
                   </Text>
                   <Text className="text-[11px] text-ink-muted mt-[2px]">
-                    São Paulo · 6 rotas ativas
+                    {[result?.school?.city, result?.route?.van_label && `Van ${result.route.van_label}`]
+                      .filter(Boolean)
+                      .join(' · ') || 'Escola encontrada'}
                   </Text>
                 </View>
                 <View
@@ -215,21 +258,22 @@ export function InviteCodeScreen({ onBack, onContinue }: Props) {
                 className="text-[13px] text-ink-muted mt-[14px] leading-[20px] text-center"
                 style={{ maxWidth: 300 }}
               >
-                Continue o cadastro para vincular sua conta ao motorista da rota.
+                Continue para escolher qual filho vai usar essa van.
               </Text>
             </View>
 
             <Pressable
-              onPress={onContinue}
+              onPress={() => result && onContinue(codeString, result)}
               className="p-[14px] bg-ink rounded-2xl items-center"
             >
               <Text className="text-canvas text-[15px] font-bold tracking-[-0.2px]">
-                Continuar para cadastro
+                Continuar
               </Text>
             </Pressable>
             <Pressable
               onPress={() => {
-                setFound(false);
+                setResult(null);
+                setError(null);
                 setCode(Array(CODE_LEN).fill(''));
               }}
               className="mt-2 p-3 items-center"

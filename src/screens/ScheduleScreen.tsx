@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, ScrollView, Pressable } from 'react-native';
 import { theme } from '../theme';
 import { Avatar } from '../components/Avatar';
 import { Icon } from '../components/Icon';
+import { useMyKids, type MyKid } from '../lib/kids';
 
 const DAYS = ['S', 'T', 'Q', 'Q', 'S'];
 
@@ -18,43 +19,62 @@ type Trip = {
   highlight?: boolean;
 };
 
-const TRIPS: Trip[] = [
-  {
-    period: 'Manhã · Embarque',
-    time: '7:54 – 8:42',
-    status: 'A CAMINHO',
-    statusTone: 'base',
-    kids: [
-      { n: 'Ezra', c: '#E08A2A' },
-      { n: 'Iris', c: '#3A5BD9' },
-    ],
-    from: 'Av. Maple 88',
-    to: 'Escola Greenfield',
-    eta: 'Prev. 8:42',
-    highlight: true,
-  },
-  {
-    period: 'Tarde · Desembarque',
-    time: '14:30 – 15:18',
-    status: 'AGENDADO',
-    statusTone: 'muted',
-    kids: [
-      { n: 'Ezra', c: '#E08A2A' },
-      { n: 'Iris', c: '#3A5BD9' },
-      { n: 'Theo', c: '#1F7A4E' },
-    ],
-    from: 'Escola Greenfield',
-    to: 'Av. Maple 88',
-    eta: 'Prev. 15:02',
-  },
-];
+// Derive one trip card per route the parent's kids share.
+function buildTrips(kids: MyKid[]): Trip[] {
+  const byRoute = new Map<string, { kids: MyKid[]; route: MyKid['route'] }>();
+  for (const k of kids) {
+    if (!k.route) continue;
+    const entry = byRoute.get(k.route.id) ?? { kids: [], route: k.route };
+    entry.kids.push(k);
+    byRoute.set(k.route.id, entry);
+  }
+
+  const ordered = [...byRoute.values()].sort((a, b) =>
+    (a.route?.period ?? '').localeCompare(b.route?.period ?? ''),
+  );
+
+  return ordered.map(({ kids: rKids, route }, idx) => {
+    const isMorning = route?.period === 'morning';
+    const start = formatTime(route?.pickup_start);
+    const end = formatTime(route?.arrival_time);
+    const school = rKids[0]?.route?.school?.name ?? 'Escola';
+    const firstPickup = rKids.map((k) => k.pickup?.address).find(Boolean) ?? '—';
+    return {
+      period: isMorning ? 'Manhã · Embarque' : 'Tarde · Desembarque',
+      time: start && end ? `${start} – ${end}` : start || end || '—',
+      status: idx === 0 ? 'A CAMINHO' : 'AGENDADO',
+      statusTone: idx === 0 ? 'base' : 'muted',
+      kids: rKids.map((k) => ({
+        n: k.short_name ?? k.full_name,
+        c: k.color ?? '#888',
+      })),
+      from: isMorning ? firstPickup : school,
+      to: isMorning ? school : firstPickup,
+      eta: end ? `Prev. ${end}` : 'Horário a definir',
+      highlight: idx === 0,
+    };
+  });
+}
+
+function formatTime(t: string | null | undefined): string {
+  if (!t) return '';
+  const [h, m] = t.split(':');
+  return `${Number(h)}:${m}`;
+}
 
 export function ScheduleScreen() {
+  const { data: kids = [] } = useMyKids();
+  const trips = useMemo(() => buildTrips(kids), [kids]);
+  const uniqueKidCount = new Set(kids.map((k) => k.id)).size;
   return (
     <View className="flex-1 bg-canvas">
       <View className="px-5 pt-1 pb-4">
         <Text className="text-[22px] font-bold text-ink tracking-[-0.5px]">Esta semana</Text>
-        <Text className="text-[13px] text-ink-muted mt-[2px]">11 a 15 de maio · 3 crianças</Text>
+        <Text className="text-[13px] text-ink-muted mt-[2px]">
+          {uniqueKidCount === 0
+            ? 'Nenhuma criança vinculada'
+            : `${uniqueKidCount} ${uniqueKidCount === 1 ? 'criança' : 'crianças'}`}
+        </Text>
       </View>
 
       <View className="px-5 flex-row gap-2 mb-[14px]">
@@ -92,9 +112,15 @@ export function ScheduleScreen() {
       </View>
 
       <ScrollView className="flex-1" contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }}>
-        {TRIPS.map((t, i) => (
-          <TripCard key={i} trip={t} />
-        ))}
+        {trips.length === 0 ? (
+          <View className="bg-surface rounded-[18px] border border-line p-4">
+            <Text className="text-[13px] text-ink-muted">
+              Nenhuma viagem agendada. Insira um código de convite no perfil para vincular um filho.
+            </Text>
+          </View>
+        ) : (
+          trips.map((t, i) => <TripCard key={i} trip={t} />)
+        )}
 
         <View
           className="mt-[14px] p-[14px] rounded-[18px] flex-row gap-3 items-start"

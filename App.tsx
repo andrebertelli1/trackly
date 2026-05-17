@@ -10,6 +10,9 @@ import { RegisterScreen } from './src/screens/RegisterScreen';
 import { ForgotPasswordScreen } from './src/screens/ForgotPasswordScreen';
 import { ResetPasswordScreen } from './src/screens/ResetPasswordScreen';
 import { InviteCodeScreen } from './src/screens/InviteCodeScreen';
+import { AddKidScreen } from './src/screens/AddKidScreen';
+import { PickKidForRouteScreen } from './src/screens/PickKidForRouteScreen';
+import type { ValidatedInvite } from './src/lib/invite';
 import { TrackingScreen } from './src/screens/TrackingScreen';
 import { ScheduleScreen } from './src/screens/ScheduleScreen';
 import { HistoryScreen } from './src/screens/HistoryScreen';
@@ -30,8 +33,10 @@ type Flow =
   | 'login'
   | 'register'
   | 'forgot'
-  | 'invite'
-  | 'inviteFromProfile'
+  | 'invite'              // anonymous (from Welcome) — validates a code before signup
+  | 'inviteFromProfile'   // authenticated — full validate + pick + link flow
+  | 'pickKidForRoute'     // post-validate: pick which of the parent's kids to attach
+  | 'addKid'              // standalone "add a kid" form
   | 'parent'
   | 'driver';
 
@@ -41,6 +46,12 @@ function Root() {
   const [parentTab, setParentTab] = useState('track');
   const [driverTab, setDriverTab] = useState('route');
   const [keyboardUp, setKeyboardUp] = useState(false);
+  /** Code carried from the pre-signup invite flow; consumed after signup. */
+  const [pendingInviteCode, setPendingInviteCode] = useState<string | null>(null);
+  /** Validated invite payload (route + stops) waiting on the kid picker. */
+  const [pendingInvite, setPendingInvite] = useState<ValidatedInvite | null>(null);
+  /** Where to return after AddKid (the picker, the profile, etc.). */
+  const [addKidReturn, setAddKidReturn] = useState<Flow>('parent');
 
   useEffect(() => {
     const show = Keyboard.addListener('keyboardWillShow', () => setKeyboardUp(true));
@@ -113,7 +124,15 @@ function Root() {
         <FadeIn key="register">
           <RegisterScreen
             onLogin={() => setFlow('login')}
-            onSubmit={() => setFlow('parent')}
+            onSubmit={() => {
+              // If they came in via Welcome → Invite → Register, drop them into the
+              // kid picker now that they have a session. Otherwise → parent flow.
+              if (pendingInvite && pendingInviteCode) {
+                setFlow('pickKidForRoute');
+              } else {
+                setFlow('parent');
+              }
+            }}
           />
         </FadeIn>
       )}
@@ -126,7 +145,11 @@ function Root() {
         <FadeIn key="invite">
           <InviteCodeScreen
             onBack={() => setFlow('welcome')}
-            onContinue={() => setFlow('register')}
+            onContinue={(code, invite) => {
+              setPendingInviteCode(code);
+              setPendingInvite(invite);
+              setFlow('register');
+            }}
           />
         </FadeIn>
       )}
@@ -134,7 +157,41 @@ function Root() {
         <FadeIn key="inviteFromProfile">
           <InviteCodeScreen
             onBack={() => setFlow('parent')}
-            onContinue={() => setFlow('parent')}
+            onContinue={(code, invite) => {
+              setPendingInviteCode(code);
+              setPendingInvite(invite);
+              setFlow('pickKidForRoute');
+            }}
+          />
+        </FadeIn>
+      )}
+      {flow === 'pickKidForRoute' && pendingInvite && pendingInviteCode && (
+        <FadeIn key="pickKidForRoute">
+          <PickKidForRouteScreen
+            code={pendingInviteCode}
+            invite={pendingInvite}
+            onBack={() => {
+              setPendingInvite(null);
+              setPendingInviteCode(null);
+              setFlow(session ? 'parent' : 'welcome');
+            }}
+            onAddKid={() => {
+              setAddKidReturn('pickKidForRoute');
+              setFlow('addKid');
+            }}
+            onLinked={() => {
+              setPendingInvite(null);
+              setPendingInviteCode(null);
+              setFlow('parent');
+            }}
+          />
+        </FadeIn>
+      )}
+      {flow === 'addKid' && (
+        <FadeIn key="addKid">
+          <AddKidScreen
+            onBack={() => setFlow(addKidReturn)}
+            onCreated={() => setFlow(addKidReturn)}
           />
         </FadeIn>
       )}
@@ -146,7 +203,13 @@ function Root() {
             {parentTab === 'history' && <HistoryScreen />}
             {parentTab === 'chat' && <ChatScreen onBack={() => setParentTab('track')} />}
             {parentTab === 'profile' && (
-              <ProfileScreen onLinkVan={() => setFlow('inviteFromProfile')} />
+              <ProfileScreen
+                onLinkVan={() => setFlow('inviteFromProfile')}
+                onAddKid={() => {
+                  setAddKidReturn('parent');
+                  setFlow('addKid');
+                }}
+              />
             )}
           </FadeIn>
           {!keyboardUp && <TabBar active={parentTab} onTab={setParentTab} />}

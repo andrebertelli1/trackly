@@ -1,11 +1,11 @@
 import React from 'react';
 import { View, Text, ScrollView, Pressable, Alert } from 'react-native';
 import { theme } from '../theme';
-import { KIDS } from '../data';
 import { Avatar } from '../components/Avatar';
 import { Icon } from '../components/Icon';
 import { useAuth } from '../lib/auth';
 import { useProfile } from '../lib/profile';
+import { useMyKids } from '../lib/kids';
 
 type PrefIcon = 'bell' | 'shield' | 'phone' | 'user';
 
@@ -21,13 +21,24 @@ const PREFS: { icon: PrefIcon; label: string; detail?: string }[] = [
   { icon: 'user', label: 'Pagamento e cobrança', detail: 'Visa ••4421' },
 ];
 
-type Props = { onLinkVan?: () => void };
+type Props = { onLinkVan?: () => void; onAddKid?: () => void };
 
-export function ProfileScreen({ onLinkVan }: Props = {}) {
+export function ProfileScreen({ onLinkVan, onAddKid }: Props = {}) {
   const { user, signOut } = useAuth();
   const { data: profile } = useProfile();
+  const { data: kids = [] } = useMyKids();
   const displayName = profile?.full_name || user?.email || 'Sua conta';
   const displayPhone = profile?.phone || user?.email || '';
+
+  // De-duplicate kids that appear once per route (morning + afternoon).
+  const uniqueKids = Array.from(
+    new Map(kids.map((k) => [k.id, k])).values(),
+  );
+  const linkedVans = new Set(
+    kids.map((k) => k.route?.van_label).filter((v): v is string => !!v),
+  );
+  const firstVan = [...linkedVans][0] ?? null;
+  const firstDriver = kids.find((k) => k.route?.driver_name)?.route?.driver_name ?? null;
 
   const [signingOut, setSigningOut] = React.useState(false);
   const handleSignOut = async () => {
@@ -56,7 +67,12 @@ export function ProfileScreen({ onLinkVan }: Props = {}) {
             <Text className="text-xs text-ink-muted mt-[1px]">{displayPhone}</Text>
             <View className="flex-row gap-[6px] mt-[6px]">
               <TagPill text="VERIFICADA" tone="success" />
-              <TagPill text="3 CRIANÇAS" tone="muted" />
+              {uniqueKids.length > 0 && (
+                <TagPill
+                  text={`${uniqueKids.length} ${uniqueKids.length === 1 ? 'CRIANÇA' : 'CRIANÇAS'}`}
+                  tone="muted"
+                />
+              )}
             </View>
           </View>
           <Pressable className="py-[7px] px-3 rounded-[10px] bg-surface-alt">
@@ -64,24 +80,48 @@ export function ProfileScreen({ onLinkVan }: Props = {}) {
           </Pressable>
         </View>
 
-        <SectionLabel title="Crianças" right="Adicionar" />
+        <SectionLabel title="Crianças" right="Adicionar" onRightPress={onAddKid} />
         <View className="bg-surface rounded-[18px] border border-line overflow-hidden">
-          {KIDS.map((k, i) => (
-            <View
-              key={k.id}
-              className="flex-row gap-3 items-center py-3 px-[14px]"
-              style={{ borderTopWidth: i ? 1 : 0, borderTopColor: theme.line }}
-            >
-              <Avatar name={k.name} size={40} bg={k.color} />
-              <View className="flex-1">
-                <Text className="text-sm font-semibold text-ink">{k.name} Vance</Text>
-                <Text className="text-[11px] text-ink-muted mt-[1px]">
-                  {k.grade}º ano · Escola Greenfield
-                </Text>
-              </View>
-              <TagPill text="VAN VK-32" tone="base" />
+          {uniqueKids.length === 0 ? (
+            <View className="py-4 px-[14px]">
+              <Text className="text-[13px] text-ink-muted">
+                Nenhuma criança vinculada ainda. Use um código de convite abaixo para conectar.
+              </Text>
             </View>
-          ))}
+          ) : (
+            uniqueKids.map((k, i) => {
+              const displayShort = k.short_name ?? k.full_name;
+              const detail = [
+                k.grade != null ? `${k.grade}º ano` : null,
+                k.route?.school?.name,
+              ]
+                .filter(Boolean)
+                .join(' · ');
+              return (
+                <View
+                  key={k.id}
+                  className="flex-row gap-3 items-center py-3 px-[14px]"
+                  style={{ borderTopWidth: i ? 1 : 0, borderTopColor: theme.line }}
+                >
+                  <Avatar name={displayShort} size={40} bg={k.color ?? '#888'} />
+                  <View className="flex-1">
+                    <Text className="text-sm font-semibold text-ink">{k.full_name}</Text>
+                    {detail.length > 0 && (
+                      <Text className="text-[11px] text-ink-muted mt-[1px]">{detail}</Text>
+                    )}
+                    {k.pickup_address && (
+                      <Text className="text-[11px] text-ink-faint mt-[1px]" numberOfLines={1}>
+                        {k.pickup_address}
+                      </Text>
+                    )}
+                  </View>
+                  {k.route?.van_label && (
+                    <TagPill text={`VAN ${k.route.van_label}`} tone="base" />
+                  )}
+                </View>
+              );
+            })
+          )}
         </View>
 
         <SectionLabel title="Vincular nova van" />
@@ -131,8 +171,19 @@ export function ProfileScreen({ onLinkVan }: Props = {}) {
         >
           <Icon name="check" size={14} color={theme.success} />
           <Text className="flex-1 text-[11px] text-ink-muted">
-            <Text className="font-semibold text-ink">1 van vinculada</Text> · VK-32 · Motorista
-            Marcus T.
+            {linkedVans.size === 0 ? (
+              <>Nenhuma van vinculada ainda.</>
+            ) : (
+              <>
+                <Text className="font-semibold text-ink">
+                  {linkedVans.size === 1
+                    ? '1 van vinculada'
+                    : `${linkedVans.size} vans vinculadas`}
+                </Text>
+                {firstVan ? ` · ${firstVan}` : ''}
+                {firstDriver ? ` · Motorista ${firstDriver}` : ''}
+              </>
+            )}
           </Text>
         </View>
 
@@ -188,11 +239,26 @@ export function ProfileScreen({ onLinkVan }: Props = {}) {
   );
 }
 
-function SectionLabel({ title, right }: { title: string; right?: string }) {
+function SectionLabel({
+  title,
+  right,
+  onRightPress,
+}: {
+  title: string;
+  right?: string;
+  onRightPress?: () => void;
+}) {
   return (
     <View className="flex-row justify-between items-baseline mt-[18px] mb-2 mx-[6px]">
       <Text className="text-[11px] text-ink-muted font-bold uppercase tracking-[0.6px]">{title}</Text>
-      {right && <Text className="text-brand text-xs font-semibold">{right}</Text>}
+      {right &&
+        (onRightPress ? (
+          <Pressable onPress={onRightPress} hitSlop={8}>
+            <Text className="text-brand text-xs font-semibold">{right}</Text>
+          </Pressable>
+        ) : (
+          <Text className="text-brand text-xs font-semibold">{right}</Text>
+        ))}
     </View>
   );
 }

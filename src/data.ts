@@ -1,10 +1,5 @@
-export type Kid = { id: string; name: string; grade: number; color: string };
-
-export const KIDS: Kid[] = [
-  { id: 'ezra', name: 'Ezra', grade: 3, color: '#E08A2A' },
-  { id: 'iris', name: 'Iris', grade: 1, color: '#3A5BD9' },
-  { id: 'theo', name: 'Theo', grade: 5, color: '#1F7A4E' },
-];
+// Parent-side kids now come from `src/lib/kids.ts` (Supabase). Driver flow
+// and the map scaffold still use the static fixtures below.
 
 export type Stop = { name: string; addr: string; time: string };
 
