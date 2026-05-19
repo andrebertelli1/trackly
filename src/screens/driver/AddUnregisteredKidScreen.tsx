@@ -24,7 +24,7 @@ export function AddUnregisteredKidScreen({ vanId, onBack, onCreated }: Props) {
   const handleSubmit = async () => {
     if (busy) return;
     setError(null);
-    if (!fullName.trim()) return setError('Informe o nome da criança.');
+    if (!fullName.trim()) return setError('Informe o nome do estudante.');
     if (!pickupAddress.trim()) return setError('Informe o endereço de embarque.');
     try {
       await add.mutateAsync({
@@ -52,13 +52,13 @@ export function AddUnregisteredKidScreen({ vanId, onBack, onCreated }: Props) {
 
         <View className="mt-[18px]">
           <Text className="text-[11px] font-bold text-warm tracking-[1.2px]">
-            CRIANÇA NÃO CADASTRADA
+            ESTUDANTE NÃO CADASTRADO
           </Text>
           <Text className="text-[26px] font-bold text-ink tracking-[-0.6px] mt-[6px] leading-[30px]">
-            Adicionar criança
+            Adicionar estudante
           </Text>
           <Text className="text-sm text-ink-muted mt-[6px] leading-[20px]">
-            Use para crianças cujos responsáveis ainda não usam o Trackly. Elas aparecem só pra
+            Use para estudantes cujos responsáveis ainda não usam o Trackly. Eles aparecem só pra
             você (motorista) — nenhum pai vê.
           </Text>
         </View>
@@ -143,7 +143,7 @@ export function AddUnregisteredKidScreen({ vanId, onBack, onCreated }: Props) {
           }}
         >
           <Text className="text-canvas text-[15px] font-bold tracking-[-0.2px]">
-            {busy ? 'Adicionando…' : 'Adicionar criança'}
+            {busy ? 'Adicionando…' : 'Adicionar estudante'}
           </Text>
         </PressScale>
       </ScrollView>

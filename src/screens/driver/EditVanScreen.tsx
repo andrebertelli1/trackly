@@ -246,14 +246,14 @@ export function EditVanScreen({ vanId, onBack, onDone, onAddUnregistered }: Prop
 
         <View className="mt-[22px]">
           <Text className="text-[11px] font-bold text-ink-muted uppercase tracking-[0.6px] mb-2">
-            Crianças nesta van ({kids.length})
+            Estudantes nesta van ({kids.length})
           </Text>
           <View className="bg-surface rounded-[18px] border border-line overflow-hidden">
             {kids.length === 0 ? (
               <View className="py-4 px-[14px]">
                 <Text className="text-[13px] text-ink-muted">
-                  Nenhuma criança vinculada ainda. Gere um código de convite na tela Minhas vans
-                  e compartilhe com os pais, ou adicione uma criança não-cadastrada abaixo.
+                  Nenhum estudante vinculado ainda. Gere um código de convite na tela Minhas vans
+                  e compartilhe com os pais, ou adicione um estudante não-cadastrado abaixo.
                 </Text>
               </View>
             ) : (
@@ -307,7 +307,7 @@ export function EditVanScreen({ vanId, onBack, onDone, onAddUnregistered }: Prop
             style={{ backgroundColor: `${theme.warm}1A` }}
           >
             <Text className="text-[13px] font-bold" style={{ color: theme.warm }}>
-              + Adicionar criança não cadastrada
+              + Adicionar estudante não cadastrado
             </Text>
           </Pressable>
         </View>

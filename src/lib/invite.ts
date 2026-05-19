@@ -38,7 +38,7 @@ function mapInviteError(err: { code?: string; message?: string }): InviteError {
   if (code === 'P0003')
     return new InviteError(err.message ?? '', 'Código já foi resgatado o máximo de vezes.');
   if (code === 'P0004')
-    return new InviteError(err.message ?? '', 'Esta criança não pertence à sua conta.');
+    return new InviteError(err.message ?? '', 'Este estudante não pertence à sua conta.');
   if (code === '28000')
     return new InviteError(err.message ?? '', 'Faça login antes de continuar.');
   return new InviteError(err.message ?? 'erro', err.message ?? 'Não foi possível validar o código.');

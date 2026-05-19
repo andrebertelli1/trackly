@@ -75,10 +75,10 @@ export function AddKidScreen({ onBack, onCreated }: Props) {
 
         <View className="mt-[18px]">
           <Text className="text-[28px] font-bold text-ink tracking-[-0.6px] leading-[31px]">
-            Adicionar criança
+            Adicionar estudante
           </Text>
           <Text className="text-sm text-ink-muted mt-2 leading-[20px]">
-            Preencha as informações da criança. Você poderá vincular a uma van depois usando um
+            Preencha as informações do estudante. Você poderá vincular a uma van depois usando um
             código de convite.
           </Text>
         </View>
@@ -204,7 +204,7 @@ export function AddKidScreen({ onBack, onCreated }: Props) {
           }}
         >
           <Text className="text-canvas text-[15px] font-bold tracking-[-0.2px]">
-            {busy ? 'Salvando…' : 'Adicionar criança'}
+            {busy ? 'Salvando…' : 'Adicionar estudante'}
           </Text>
         </PressScale>
       </ScrollView>

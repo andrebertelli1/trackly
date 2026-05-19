@@ -72,8 +72,8 @@ export function ScheduleScreen() {
         <Text className="text-[22px] font-bold text-ink tracking-[-0.5px]">Esta semana</Text>
         <Text className="text-[13px] text-ink-muted mt-[2px]">
           {uniqueKidCount === 0
-            ? 'Nenhuma criança vinculada'
-            : `${uniqueKidCount} ${uniqueKidCount === 1 ? 'criança' : 'crianças'}`}
+            ? 'Nenhum estudante vinculado'
+            : `${uniqueKidCount} ${uniqueKidCount === 1 ? 'estudante' : 'estudantes'}`}
         </Text>
       </View>
 

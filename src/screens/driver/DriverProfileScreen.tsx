@@ -69,7 +69,7 @@ export function DriverProfileScreen({ onOpenRoutes }: Props = {}) {
           </View>
           <View className="flex-row gap-[10px] mt-[18px]">
             <KPI label="Vans" value={`${vans.length}`} sub="ativas" />
-            <KPI label="Crianças" value={`${totalKids}`} sub="vinculadas" />
+            <KPI label="Estudantes" value={`${totalKids}`} sub="vinculados" />
             <KPI label="Pontualidade" value="98%" sub="últ. 30d" />
           </View>
         </View>

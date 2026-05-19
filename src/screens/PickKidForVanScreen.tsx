@@ -42,7 +42,7 @@ export function PickKidForVanScreen({
     if (busy) return;
     setError(null);
     if (!selectedKidId) {
-      setError('Selecione uma criança.');
+      setError('Selecione um estudante.');
       return;
     }
     try {
@@ -67,7 +67,7 @@ export function PickKidForVanScreen({
         <View className="mt-[18px]">
           <Text className="text-[11px] font-bold text-warm tracking-[1.2px]">VINCULAR À VAN</Text>
           <Text className="text-[26px] font-bold text-ink tracking-[-0.6px] mt-[6px] leading-[30px]">
-            {invite.van?.label ? `Van ${invite.van.label}` : 'Selecionar criança'}
+            {invite.van?.label ? `Van ${invite.van.label}` : 'Selecionar estudante'}
           </Text>
           {invite.school?.name && (
             <Text className="text-sm text-ink-muted mt-[6px]">
@@ -111,18 +111,18 @@ export function PickKidForVanScreen({
         )}
 
         <Text className="mt-6 text-[11px] font-bold text-ink-muted uppercase tracking-[0.6px]">
-          Qual criança?
+          Qual estudante?
         </Text>
 
         <View className="mt-[8px] bg-surface rounded-[18px] border border-line overflow-hidden">
           {isLoading ? (
             <View className="py-4 px-[14px]">
-              <Text className="text-[13px] text-ink-muted">Carregando crianças…</Text>
+              <Text className="text-[13px] text-ink-muted">Carregando estudantes…</Text>
             </View>
           ) : uniqueKids.length === 0 ? (
             <View className="py-4 px-[14px]">
               <Text className="text-[13px] text-ink-muted">
-                Você ainda não cadastrou nenhuma criança.
+                Você ainda não cadastrou nenhum estudante.
               </Text>
             </View>
           ) : (
@@ -181,7 +181,7 @@ export function PickKidForVanScreen({
               <Icon name="plus" size={18} color={theme.textMuted} />
             </View>
             <Text className="flex-1 text-sm font-semibold" style={{ color: theme.base }}>
-              Criar nova criança
+              Criar novo estudante
             </Text>
           </Pressable>
         </View>
@@ -232,7 +232,7 @@ export function PickKidForVanScreen({
             className="text-[15px] font-bold tracking-[-0.2px]"
             style={{ color: selectedKidId ? theme.canvas : theme.textFaint }}
           >
-            {busy ? 'Vinculando…' : 'Vincular criança à van'}
+            {busy ? 'Vinculando…' : 'Vincular estudante à van'}
           </Text>
         </PressScale>
       </ScrollView>
@@ -247,7 +247,7 @@ function AddressLine({ label, address }: { label: string; address: string | null
       <Text className="flex-1 text-[12px] text-ink leading-[16px]">
         {address ?? (
           <Text className="italic" style={{ color: theme.danger }}>
-            Esta criança não tem endereço cadastrado.
+            Este estudante não tem endereço cadastrado.
           </Text>
         )}
       </Text>

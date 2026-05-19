@@ -198,7 +198,7 @@ function ActiveTripCard({
       </View>
 
       <Text className="mt-4 mx-[6px] text-[11px] font-bold text-ink-muted uppercase tracking-[0.6px]">
-        Crianças
+        Estudantes
       </Text>
 
       {isLoading && (
@@ -207,7 +207,7 @@ function ActiveTripCard({
 
       {!isLoading && kids.length === 0 && (
         <Text className="mt-2 mx-[6px] text-[13px] text-ink-muted">
-          Nenhuma criança vinculada a esta rota.
+          Nenhum estudante vinculado a esta rota.
         </Text>
       )}
 

@@ -69,7 +69,7 @@ export function ProfileScreen({ onLinkVan, onAddKid }: Props = {}) {
               <TagPill text="VERIFICADA" tone="success" />
               {uniqueKids.length > 0 && (
                 <TagPill
-                  text={`${uniqueKids.length} ${uniqueKids.length === 1 ? 'CRIANÇA' : 'CRIANÇAS'}`}
+                  text={`${uniqueKids.length} ${uniqueKids.length === 1 ? 'ESTUDANTE' : 'ESTUDANTES'}`}
                   tone="muted"
                 />
               )}
@@ -80,12 +80,12 @@ export function ProfileScreen({ onLinkVan, onAddKid }: Props = {}) {
           </Pressable>
         </View>
 
-        <SectionLabel title="Crianças" right="Adicionar" onRightPress={onAddKid} />
+        <SectionLabel title="Estudantes" right="Adicionar" onRightPress={onAddKid} />
         <View className="bg-surface rounded-[18px] border border-line overflow-hidden">
           {uniqueKids.length === 0 ? (
             <View className="py-4 px-[14px]">
               <Text className="text-[13px] text-ink-muted">
-                Nenhuma criança vinculada ainda. Use um código de convite abaixo para conectar.
+                Nenhum estudante vinculado ainda. Use um código de convite abaixo para conectar.
               </Text>
             </View>
           ) : (

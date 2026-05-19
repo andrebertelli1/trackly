@@ -72,7 +72,7 @@ export function DriverRouteScreen({ onOpenCheckin, onCreate }: Props = {}) {
             <View className="flex-1">
               <Text className="text-sm font-bold text-ink">Criar sua primeira rota</Text>
               <Text className="text-[12px] text-ink-muted mt-[2px] leading-[17px]">
-                Cadastre a escola, a van e os horários. Crianças vinculam depois via código de
+                Cadastre a escola, a van e os horários. Estudantes vinculam depois via código de
                 convite.
               </Text>
             </View>
@@ -209,7 +209,7 @@ function RouteRow({
           </View>
           <View className="flex-1 bg-surface-alt rounded-xl py-[10px] px-3">
             <Text className="text-[10px] font-bold text-ink-muted uppercase tracking-[0.4px]">
-              Crianças
+              Estudantes
             </Text>
             <Text className="text-[15px] font-bold text-ink mt-[1px]">{eventKidCount}</Text>
           </View>

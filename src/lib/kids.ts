@@ -208,7 +208,7 @@ export function useCreateKid() {
   const { user } = useAuth();
   return useMutation({
     mutationFn: async (input: CreateKidInput) => {
-      if (!user) throw new Error('Faça login antes de adicionar uma criança.');
+      if (!user) throw new Error('Faça login antes de adicionar um estudante.');
       const { data, error } = await supabase
         .from('kids')
         .insert({

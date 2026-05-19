@@ -57,7 +57,7 @@ export function MyVansScreen({ onBack, onCreate, onEdit }: Props) {
             <View className="flex-1">
               <Text className="text-sm font-bold text-ink">Nenhuma van criada</Text>
               <Text className="text-[12px] text-ink-muted mt-[2px] leading-[17px]">
-                Crie sua primeira van pra começar a gerar códigos e receber crianças.
+                Crie sua primeira van pra começar a gerar códigos e receber estudantes.
               </Text>
             </View>
           </View>
@@ -206,7 +206,7 @@ function VanCard({ van, onEdit }: { van: DriverVan; onEdit: () => void }) {
               className="text-[10px] font-bold tracking-[0.3px]"
               style={{ color: theme.success }}
             >
-              {van.kid_count} {van.kid_count === 1 ? 'CRIANÇA' : 'CRIANÇAS'}
+              {van.kid_count} {van.kid_count === 1 ? 'ESTUDANTE' : 'ESTUDANTES'}
             </Text>
           </View>
           <Pressable onPress={onEdit} hitSlop={6}>
