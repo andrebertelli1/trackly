@@ -1,157 +1,266 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, ScrollView, Pressable } from 'react-native';
+import React, { useMemo } from 'react';
+import { View, Text, ScrollView, Alert, Pressable } from 'react-native';
 import { theme } from '../../theme';
-import { STOPS } from '../../data';
-import { MapView } from '../../components/MapView';
-import { Avatar } from '../../components/Avatar';
 import { Icon } from '../../components/Icon';
+import { PressScale } from '../../components/PressScale';
+import { useMyVans, type DriverVan, type VanRoute } from '../../lib/driver';
+import { useActiveTrip, useStartTrip } from '../../lib/trip';
 
-export function DriverRouteScreen() {
-  const [progress, setProgress] = useState(0.45);
-  const [playing, setPlaying] = useState(true);
-  const lastRef = useRef<number | null>(null);
+type Props = {
+  onOpenCheckin?: (tripId: string) => void;
+  onCreate?: () => void;
+};
 
-  useEffect(() => {
-    if (!playing) return;
-    let raf: number;
-    lastRef.current = null;
-    const tick = (now: number) => {
-      const last = lastRef.current ?? now;
-      const dt = (now - last) / 1000;
-      lastRef.current = now;
-      setProgress((p) => {
-        const next = p + dt * 0.025;
-        if (next >= 0.95) {
-          setPlaying(false);
-          return 0.95;
-        }
-        return next;
-      });
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [playing]);
+export function DriverRouteScreen({ onOpenCheckin, onCreate }: Props = {}) {
+  const { data: vans = [], isLoading } = useMyVans();
 
-  const currentIdx = Math.min(STOPS.length - 1, Math.round(progress * 4));
-  const next = STOPS[currentIdx]!;
+  // Flatten { van, route } pairs for easier rendering.
+  const flat = useMemo(() => {
+    const out: { van: DriverVan; route: VanRoute }[] = [];
+    for (const van of vans) for (const route of van.routes) out.push({ van, route });
+    return out;
+  }, [vans]);
 
   return (
     <View className="flex-1 bg-canvas">
-      <View className="px-5 pt-1 pb-3 flex-row items-center justify-between">
+      <View className="px-5 pt-1 pb-3 flex-row items-end justify-between">
         <View>
-          <Text className="text-[11px] text-ink-muted font-semibold uppercase tracking-[0.5px]">
-            Rota da manhã · Van VK-32
+          <Text className="text-[11px] font-bold text-warm tracking-[1.2px]">HOJE</Text>
+          <Text className="text-[22px] font-bold text-ink tracking-[-0.5px] mt-[2px]">
+            Suas rotas
           </Text>
-          <Text className="text-[22px] font-bold text-ink tracking-[-0.5px] mt-[2px]">Embarque</Text>
         </View>
-        <View
-          className="py-1 px-[10px] rounded-full flex-row items-center gap-[6px]"
-          style={{ backgroundColor: `${theme.success}22` }}
-        >
-          <View className="w-[6px] h-[6px] rounded-full bg-success" />
-          <Text className="text-[11px] font-bold text-success tracking-[0.3px]">NO HORÁRIO</Text>
-        </View>
+        {onCreate && (
+          <Pressable
+            onPress={onCreate}
+            hitSlop={8}
+            className="flex-row items-center bg-surface rounded-full border border-line"
+            style={{ paddingVertical: 7, paddingHorizontal: 12, gap: 6 }}
+          >
+            <Icon name="plus" size={14} color={theme.text} />
+            <Text className="text-[12px] font-semibold text-ink">Nova rota</Text>
+          </Pressable>
+        )}
       </View>
 
-      <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 16 }}>
-        <View className="mx-4 rounded-[22px] overflow-hidden">
-          <MapView progress={progress} height={210} />
-          <View className="absolute bottom-0 left-0 right-0 flex-row items-center gap-3 px-[14px] py-[10px] bg-black/40">
-            <View className="flex-1">
-              <Text className="text-white text-[10px] font-bold tracking-[0.8px] opacity-85">
-                PRÓXIMA PARADA
-              </Text>
-              <Text className="text-white text-[15px] font-bold tracking-[-0.3px]">
-                {next.name} · {next.addr}
-              </Text>
-            </View>
-            <Pressable
-              onPress={() => setPlaying((p) => !p)}
-              className="w-[42px] h-[42px] rounded-full bg-white items-center justify-center"
-            >
-              <Icon name={playing ? 'pause' : 'play'} size={18} color={theme.base} />
-            </Pressable>
-          </View>
-        </View>
-
-        <View
-          className="mx-4 mt-[14px] p-4 rounded-[18px] bg-surface border border-line"
-          style={{
-            shadowColor: theme.base,
-            shadowOpacity: 0.09,
-            shadowRadius: 24,
-            shadowOffset: { width: 0, height: 6 },
-            elevation: 2,
-          }}
-        >
-          <View className="flex-row gap-3 items-center">
-            <Avatar name={next.name} size={48} bg={theme.warm} />
-            <View className="flex-1">
-              <Text className="text-[10px] text-warm font-bold tracking-[0.6px]">CHEGANDO AGORA</Text>
-              <Text className="text-[17px] font-bold text-ink tracking-[-0.3px]">{next.name}</Text>
-              <Text className="text-[11px] text-ink-muted">
-                {next.addr} · Resp.: Sara V.
-              </Text>
-            </View>
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }}
+      >
+        {!isLoading && flat.length === 0 && (
+          <Pressable
+            onPress={onCreate}
+            className="mt-2 p-4 rounded-[18px] bg-surface flex-row items-start"
+            style={{
+              gap: 12,
+              borderWidth: 1,
+              borderStyle: 'dashed',
+              borderColor: theme.lineStrong,
+            }}
+          >
             <View
-              className="w-[38px] h-[38px] rounded-full items-center justify-center"
-              style={{ backgroundColor: `${theme.success}22` }}
+              className="items-center justify-center"
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 13,
+                backgroundColor: `${theme.warm}1A`,
+              }}
             >
-              <Icon name="phone" size={16} color={theme.success} />
+              <Icon name="plus" size={20} color={theme.warm} />
             </View>
-          </View>
-          <View className="flex-row gap-2 mt-[14px]">
-            <Pressable className="flex-[2] py-3 rounded-xl bg-warm flex-row items-center justify-center gap-2">
-              <Icon name="check" size={16} color="#fff" />
-              <Text className="text-white text-sm font-bold">Embarcar</Text>
-            </Pressable>
-            <Pressable className="px-[14px] py-3 rounded-xl bg-surface-alt">
-              <Text className="text-ink text-sm font-semibold">Faltou</Text>
-            </Pressable>
-          </View>
-        </View>
+            <View className="flex-1">
+              <Text className="text-sm font-bold text-ink">Criar sua primeira rota</Text>
+              <Text className="text-[12px] text-ink-muted mt-[2px] leading-[17px]">
+                Cadastre a escola, a van e os horários. Crianças vinculam depois via código de
+                convite.
+              </Text>
+            </View>
+            <Icon name="chevron" size={16} color={theme.textFaint} />
+          </Pressable>
+        )}
 
-        <View className="px-5 mt-[14px]">
-          <Text className="text-[11px] text-ink-muted font-bold uppercase tracking-[0.6px] mb-2">
-            Lista · 5 de 6
-          </Text>
-          <View className="gap-[6px]">
-            {STOPS.slice(0, 5).map((s, i) => {
-              const status = i < currentIdx ? 'on' : i === currentIdx ? 'now' : 'wait';
-              const cfg =
-                status === 'on'
-                  ? { bg: `${theme.success}1A`, fg: theme.success, label: 'EMBARCADO' }
-                  : status === 'now'
-                    ? { bg: `${theme.warm}1A`, fg: theme.warm, label: 'NA PARADA' }
-                    : { bg: theme.surfaceAlt, fg: theme.textMuted, label: 'AGUARDANDO' };
-              const colors = ['#E08A2A', '#3A5BD9', '#1F7A4E', '#9F5BC0', '#5B7A9F'];
-              return (
-                <View
-                  key={i}
-                  className="flex-row items-center gap-3 py-[10px] px-3 bg-surface rounded-[14px] border border-line"
-                >
-                  <Avatar name={s.name} size={34} bg={colors[i % 5]!} />
-                  <View className="flex-1">
-                    <Text className="text-[13px] font-semibold text-ink">{s.name}</Text>
-                    <Text className="text-[11px] text-ink-muted">
-                      {s.addr} · {s.time}
-                    </Text>
-                  </View>
-                  <View
-                    className="py-[3px] px-2 rounded-full"
-                    style={{ backgroundColor: cfg.bg }}
-                  >
-                    <Text className="text-[10px] font-bold" style={{ color: cfg.fg }}>
-                      {cfg.label}
-                    </Text>
-                  </View>
-                </View>
-              );
-            })}
-          </View>
-        </View>
+        {flat.map(({ van, route }) => (
+          <RouteRow key={route.id} van={van} route={route} onOpenCheckin={onOpenCheckin} />
+        ))}
       </ScrollView>
     </View>
   );
+}
+
+function RouteRow({
+  van,
+  route,
+  onOpenCheckin,
+}: {
+  van: DriverVan;
+  route: VanRoute;
+  onOpenCheckin?: (tripId: string) => void;
+}) {
+  const { data: trip } = useActiveTrip(route.id);
+  const start = useStartTrip();
+  const busy = start.isPending;
+
+  const dirLabel = route.direction === 'pickup' ? 'Embarque' : 'Desembarque';
+  const directionGoing = route.direction === 'pickup' ? 'pra escola' : 'pra casa';
+  const isNow = isWithinWindow(route.pickup_start, 30);
+  const timeRange =
+    route.pickup_start && route.arrival_time
+      ? `${formatTime(route.pickup_start)}–${formatTime(route.arrival_time)}`
+      : route.pickup_start
+        ? formatTime(route.pickup_start)
+        : null;
+
+  const handleStart = async () => {
+    try {
+      const tripId = await start.mutateAsync(route.id);
+      onOpenCheckin?.(tripId);
+    } catch (e) {
+      Alert.alert('Erro ao iniciar viagem', (e as Error).message);
+    }
+  };
+
+  const active = !!trip;
+  const elapsedMin = trip
+    ? Math.max(0, Math.round((Date.now() - new Date(trip.started_at).getTime()) / 60000))
+    : 0;
+  const eventKidCount = trip
+    ? new Set(
+        trip.events
+          .filter((e) => e.event === 'boarded' || e.event === 'dropped')
+          .map((e) => e.kid_id),
+      ).size
+    : 0;
+
+  return (
+    <View
+      className="mt-3 p-4 rounded-[18px] bg-surface"
+      style={{
+        borderWidth: 1,
+        borderColor: active ? `${theme.success}55` : theme.line,
+      }}
+    >
+      <View className="flex-row items-center" style={{ gap: 12 }}>
+        <View
+          className="items-center justify-center"
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: 13,
+            backgroundColor: van.van_color ? `${van.van_color}22` : `${theme.base}1A`,
+          }}
+        >
+          <Icon
+            name={route.direction === 'pickup' ? 'route' : 'pin'}
+            size={22}
+            color={van.van_color ?? theme.base}
+          />
+        </View>
+        <View className="flex-1">
+          <View className="flex-row items-center" style={{ gap: 6, flexWrap: 'wrap' }}>
+            <Text className="text-[15px] font-bold text-ink tracking-[-0.2px]">
+              Van {van.van_label}
+              <Text className="font-medium text-ink-muted">
+                {' · '}
+                {dirLabel}
+              </Text>
+            </Text>
+            {active && (
+              <View
+                className="py-[2px] px-2 rounded-full"
+                style={{ backgroundColor: `${theme.success}1A` }}
+              >
+                <Text
+                  className="text-[10px] font-bold tracking-[0.3px]"
+                  style={{ color: theme.success }}
+                >
+                  EM ANDAMENTO
+                </Text>
+              </View>
+            )}
+            {!active && isNow && (
+              <View
+                className="py-[2px] px-2 rounded-full"
+                style={{ backgroundColor: `${theme.warm}1A` }}
+              >
+                <Text
+                  className="text-[10px] font-bold tracking-[0.3px]"
+                  style={{ color: theme.warm }}
+                >
+                  AGORA
+                </Text>
+              </View>
+            )}
+          </View>
+          <Text className="text-[12px] text-ink-muted mt-[1px]">
+            {van.school?.name ?? 'Sem escola'}
+            {timeRange ? ` · ${timeRange}` : ''}
+          </Text>
+        </View>
+      </View>
+
+      {active && trip ? (
+        <View className="mt-3 flex-row" style={{ gap: 8 }}>
+          <View className="flex-1 bg-surface-alt rounded-xl py-[10px] px-3">
+            <Text className="text-[10px] font-bold text-ink-muted uppercase tracking-[0.4px]">
+              Decorrido
+            </Text>
+            <Text className="text-[15px] font-bold text-ink mt-[1px]">{elapsedMin} min</Text>
+          </View>
+          <View className="flex-1 bg-surface-alt rounded-xl py-[10px] px-3">
+            <Text className="text-[10px] font-bold text-ink-muted uppercase tracking-[0.4px]">
+              Crianças
+            </Text>
+            <Text className="text-[15px] font-bold text-ink mt-[1px]">{eventKidCount}</Text>
+          </View>
+          <PressScale
+            onPress={() => onOpenCheckin?.(trip.id)}
+            style={{
+              flex: 2,
+              padding: 12,
+              backgroundColor: theme.text,
+              borderRadius: 12,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Text className="text-canvas text-[13px] font-bold">Ver check-in</Text>
+          </PressScale>
+        </View>
+      ) : (
+        <PressScale
+          onPress={handleStart}
+          disabled={busy}
+          style={{
+            marginTop: 12,
+            padding: 12,
+            backgroundColor: isNow ? theme.warm : theme.text,
+            borderRadius: 12,
+            alignItems: 'center',
+            opacity: busy ? 0.6 : 1,
+          }}
+        >
+          <Text className="text-canvas text-[14px] font-bold tracking-[-0.2px]">
+            {busy ? 'Iniciando…' : `Iniciar ${dirLabel.toLowerCase()} ${directionGoing}`}
+          </Text>
+        </PressScale>
+      )}
+    </View>
+  );
+}
+
+function formatTime(t: string): string {
+  const [h, m] = t.split(':');
+  return `${Number(h)}:${m}`;
+}
+
+/** True if the route's scheduled time is within ±windowMin minutes of now. */
+function isWithinWindow(scheduled: string | null, windowMin: number): boolean {
+  if (!scheduled) return false;
+  const [h, m] = scheduled.split(':');
+  if (!h || !m) return false;
+  const now = new Date();
+  const scheduledMin = Number(h) * 60 + Number(m);
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  return Math.abs(scheduledMin - nowMin) <= windowMin;
 }

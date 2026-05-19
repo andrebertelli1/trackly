@@ -15,7 +15,7 @@ export type MyKid = {
     id: string;
     van_label: string;
     van_color: string | null;
-    period: 'morning' | 'afternoon';
+    direction: 'pickup' | 'dropoff';
     pickup_start: string | null;
     arrival_time: string | null;
     driver_id: string | null;
@@ -67,19 +67,30 @@ export function useMyKids() {
 
       const routeIds = Array.from(new Set((assignments ?? []).map((a) => a.route_id)));
 
-      // 3. Routes + schools + drivers.
+      // 3. Routes (with van_id).
       const { data: routeRows, error: rErr } = routeIds.length
         ? await supabase
             .from('routes')
-            .select(
-              'id, school_id, van_label, van_color, period, pickup_start, arrival_time, driver_id',
-            )
+            .select('id, van_id, direction, pickup_start, arrival_time')
             .in('id', routeIds)
         : { data: [], error: null };
       if (rErr) throw rErr;
 
+      // 4. Vans for those routes.
+      const vanIds = Array.from(
+        new Set((routeRows ?? []).map((r) => r.van_id).filter(Boolean)),
+      );
+      const { data: vanRows, error: vErr } = vanIds.length
+        ? await supabase
+            .from('vans')
+            .select('id, school_id, van_label, van_color, driver_id')
+            .in('id', vanIds)
+        : { data: [], error: null };
+      if (vErr) throw vErr;
+
+      // 5. Schools + drivers.
       const schoolIds = Array.from(
-        new Set((routeRows ?? []).map((r) => r.school_id).filter(Boolean)),
+        new Set((vanRows ?? []).map((v) => v.school_id).filter(Boolean)),
       );
       const { data: schoolRows, error: schErr } = schoolIds.length
         ? await supabase.from('schools').select('id, name, city').in('id', schoolIds)
@@ -88,8 +99,8 @@ export function useMyKids() {
 
       const driverIds = Array.from(
         new Set(
-          (routeRows ?? [])
-            .map((r) => r.driver_id)
+          (vanRows ?? [])
+            .map((v) => v.driver_id)
             .filter((d): d is string => !!d),
         ),
       );
@@ -98,8 +109,9 @@ export function useMyKids() {
         : { data: [], error: null };
       if (dErr) throw dErr;
 
-      // 4. Merge.
+      // 6. Merge.
       const routesById = new Map((routeRows ?? []).map((r) => [r.id, r]));
+      const vansById = new Map((vanRows ?? []).map((v) => [v.id, v]));
       const schoolsById = new Map((schoolRows ?? []).map((s) => [s.id, s]));
       const driversById = new Map((driverRows ?? []).map((d) => [d.id, d]));
 
@@ -111,13 +123,13 @@ export function useMyKids() {
         if (!kid) continue;
         assignedKidIds.add(kid.id);
         const route = routesById.get(a.route_id) ?? null;
-        const school = route ? schoolsById.get(route.school_id) ?? null : null;
-        const driver = route?.driver_id ? driversById.get(route.driver_id) ?? null : null;
+        const van = route ? vansById.get(route.van_id) ?? null : null;
+        const school = van ? schoolsById.get(van.school_id) ?? null : null;
+        const driver = van?.driver_id ? driversById.get(van.driver_id) ?? null : null;
 
-        // Pickup address = embarque field for morning, dropoff for afternoon
-        // (fallback to pickup if dropoff is null).
+        // Pickup address depends on the route's direction.
         const pickupAddress = route
-          ? route.period === 'morning'
+          ? route.direction === 'pickup'
             ? kid.pickup_address
             : kid.dropoff_address ?? kid.pickup_address
           : null;
@@ -130,15 +142,15 @@ export function useMyKids() {
           color: kid.color,
           pickup_address: kid.pickup_address,
           dropoff_address: kid.dropoff_address,
-          route: route
+          route: route && van
             ? {
                 id: route.id,
-                van_label: route.van_label,
-                van_color: route.van_color,
-                period: route.period,
+                van_label: van.van_label,
+                van_color: van.van_color,
+                direction: route.direction,
                 pickup_start: route.pickup_start,
                 arrival_time: route.arrival_time,
-                driver_id: route.driver_id,
+                driver_id: van.driver_id,
                 driver_name: driver?.full_name ?? null,
                 school: school
                   ? { id: school.id, name: school.name, city: school.city }
@@ -171,10 +183,10 @@ export function useMyKids() {
       }
 
       flat.sort((a, b) => {
-        const periodOrder = (p: string | undefined) => (p === 'morning' ? 0 : 1);
-        const ap = periodOrder(a.route?.period);
-        const bp = periodOrder(b.route?.period);
-        if (ap !== bp) return ap - bp;
+        const dirOrder = (d: string | undefined) => (d === 'pickup' ? 0 : 1);
+        const ad = dirOrder(a.route?.direction);
+        const bd = dirOrder(b.route?.direction);
+        if (ad !== bd) return ad - bd;
         return (a.full_name ?? '').localeCompare(b.full_name ?? '');
       });
       return flat;

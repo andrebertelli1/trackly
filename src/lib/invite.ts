@@ -3,18 +3,21 @@ import { supabase } from './supabase';
 import { queryClient } from './queryClient';
 import { useAuth } from './auth';
 
+export type InviteRoute = {
+  id: string;
+  direction: 'pickup' | 'dropoff';
+  pickup_start: string | null;
+  arrival_time: string | null;
+};
+
 export type ValidatedInvite = {
   school: { id: string; name: string; city: string | null } | null;
-  route: {
+  van: {
     id: string;
-    van_label: string;
-    van_color: string | null;
-    period: 'morning' | 'afternoon';
-    pickup_start: string | null;
-    arrival_time: string | null;
-    school_id: string;
-    driver_id: string | null;
+    label: string;
+    color: string | null;
   } | null;
+  routes: InviteRoute[];
 };
 
 export class InviteError extends Error {
@@ -27,7 +30,7 @@ export class InviteError extends Error {
 }
 
 function mapInviteError(err: { code?: string; message?: string }): InviteError {
-  // SQLSTATEs raised by validate_invite_code / link_kid_to_route:
+  // SQLSTATEs raised by validate_invite_code / link_kid_to_van:
   //   P0001 invalid · P0002 expired · P0003 maxed out · P0004 kid not yours · 28000 not logged in.
   const code = err.code;
   if (code === 'P0001') return new InviteError(err.message ?? '', 'Código inválido.');
@@ -42,8 +45,8 @@ function mapInviteError(err: { code?: string; message?: string }): InviteError {
 }
 
 /**
- * Anonymous validation: confirms the code is good and returns the route +
- * school + stops the parent will choose from. Doesn't consume a redemption.
+ * Anonymous validation: returns school + van + every route the van runs,
+ * without consuming a redemption.
  */
 export function useValidateInviteCode() {
   return useMutation({
@@ -63,21 +66,20 @@ export type LinkInput = {
 };
 
 /**
- * Authenticated parent links one of their kids to the route the code identifies.
- * The pickup address comes from the kid's own record (pickup_address /
- * dropoff_address) based on the route's period — no per-link stop selection.
- * Consumes one redemption the first time this parent uses the code.
+ * Links one of the parent's kids to ALL of the van's routes (the code points
+ * to a van; the linkage covers every direction the van runs). Consumes one
+ * redemption the first time this parent uses the code.
  */
-export function useLinkKidToRoute() {
+export function useLinkKidToVan() {
   const { user } = useAuth();
   return useMutation({
     mutationFn: async (input: LinkInput) => {
-      const { data, error } = await supabase.rpc('link_kid_to_route', {
+      const { data, error } = await supabase.rpc('link_kid_to_van', {
         p_code: input.code.toUpperCase().trim(),
         p_kid_id: input.kid_id,
       });
       if (error) throw mapInviteError(error);
-      return data as { kid_id: string; route_id: string };
+      return data as { kid_id: string; van_id: string };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-kids', user?.id] });

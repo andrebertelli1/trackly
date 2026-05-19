@@ -6,7 +6,7 @@ import { Avatar } from '../components/Avatar';
 import { PressScale } from '../components/PressScale';
 import { useMyKids } from '../lib/kids';
 import {
-  useLinkKidToRoute,
+  useLinkKidToVan,
   InviteError,
   type ValidatedInvite,
 } from '../lib/invite';
@@ -19,7 +19,7 @@ type Props = {
   onLinked: () => void;
 };
 
-export function PickKidForRouteScreen({
+export function PickKidForVanScreen({
   invite,
   code,
   onBack,
@@ -29,18 +29,14 @@ export function PickKidForRouteScreen({
   const { data: kids = [], isLoading } = useMyKids();
   const [selectedKidId, setSelectedKidId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const link = useLinkKidToRoute();
+  const link = useLinkKidToVan();
   const busy = link.isPending;
 
-  // De-dup kids (one entry per id, even if listed twice).
   const uniqueKids = Array.from(new Map(kids.map((k) => [k.id, k])).values());
   const selectedKid = uniqueKids.find((k) => k.id === selectedKidId) ?? null;
-  const isAfternoon = invite.route?.period === 'afternoon';
-  const previewAddress = selectedKid
-    ? isAfternoon
-      ? selectedKid.dropoff_address ?? selectedKid.pickup_address
-      : selectedKid.pickup_address
-    : null;
+
+  const hasPickup = invite.routes.some((r) => r.direction === 'pickup');
+  const hasDropoff = invite.routes.some((r) => r.direction === 'dropoff');
 
   const handleLink = async () => {
     if (busy) return;
@@ -71,9 +67,7 @@ export function PickKidForRouteScreen({
         <View className="mt-[18px]">
           <Text className="text-[11px] font-bold text-warm tracking-[1.2px]">VINCULAR À VAN</Text>
           <Text className="text-[26px] font-bold text-ink tracking-[-0.6px] mt-[6px] leading-[30px]">
-            {invite.route?.van_label
-              ? `Van ${invite.route.van_label}`
-              : 'Selecionar criança'}
+            {invite.van?.label ? `Van ${invite.van.label}` : 'Selecionar criança'}
           </Text>
           {invite.school?.name && (
             <Text className="text-sm text-ink-muted mt-[6px]">
@@ -81,6 +75,20 @@ export function PickKidForRouteScreen({
               {invite.school.city ? ` · ${invite.school.city}` : ''}
             </Text>
           )}
+          <View className="flex-row flex-wrap mt-[10px]" style={{ gap: 6 }}>
+            {invite.routes.map((r) => (
+              <View
+                key={r.id}
+                className="py-[3px] px-[8px] rounded-full"
+                style={{ backgroundColor: `${theme.base}1A` }}
+              >
+                <Text className="text-[10px] font-bold" style={{ color: theme.base }}>
+                  {r.direction === 'pickup' ? 'EMBARQUE' : 'DESEMBARQUE'}
+                  {r.pickup_start ? ` · ${formatTime(r.pickup_start)}` : ''}
+                </Text>
+              </View>
+            ))}
+          </View>
         </View>
 
         {error && (
@@ -180,7 +188,7 @@ export function PickKidForRouteScreen({
 
         {selectedKid && (
           <View
-            className="mt-6 p-[12px] rounded-xl flex-row items-start"
+            className="mt-6 p-[12px] rounded-xl"
             style={{
               gap: 10,
               backgroundColor: `${theme.base}10`,
@@ -188,21 +196,21 @@ export function PickKidForRouteScreen({
               borderColor: `${theme.base}26`,
             }}
           >
-            <View style={{ marginTop: 1 }}>
-              <Icon name="pin" size={14} color={theme.base} />
-            </View>
-            <View className="flex-1">
-              <Text className="text-[11px] font-bold uppercase tracking-[0.5px]" style={{ color: theme.base }}>
-                {isAfternoon ? 'Endereço de desembarque' : 'Endereço de embarque'}
-              </Text>
-              <Text className="text-[12px] text-ink mt-[2px] leading-[17px]">
-                {previewAddress ?? (
-                  <Text className="italic" style={{ color: theme.danger }}>
-                    Esta criança ainda não tem endereço cadastrado.
-                  </Text>
-                )}
-              </Text>
-            </View>
+            <Text className="text-[11px] font-bold uppercase tracking-[0.5px]" style={{ color: theme.base }}>
+              Endereços que serão usados
+            </Text>
+            {hasPickup && (
+              <AddressLine
+                label="Embarque"
+                address={selectedKid.pickup_address}
+              />
+            )}
+            {hasDropoff && (
+              <AddressLine
+                label="Desembarque"
+                address={selectedKid.dropoff_address ?? selectedKid.pickup_address}
+              />
+            )}
           </View>
         )}
 
@@ -230,4 +238,24 @@ export function PickKidForRouteScreen({
       </ScrollView>
     </View>
   );
+}
+
+function AddressLine({ label, address }: { label: string; address: string | null }) {
+  return (
+    <View className="flex-row" style={{ gap: 6 }}>
+      <Text className="text-[11px] font-bold text-ink-muted">{label}:</Text>
+      <Text className="flex-1 text-[12px] text-ink leading-[16px]">
+        {address ?? (
+          <Text className="italic" style={{ color: theme.danger }}>
+            Esta criança não tem endereço cadastrado.
+          </Text>
+        )}
+      </Text>
+    </View>
+  );
+}
+
+function formatTime(t: string): string {
+  const [h, m] = t.split(':');
+  return `${Number(h)}:${m}`;
 }

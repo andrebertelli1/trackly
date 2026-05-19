@@ -24,6 +24,7 @@ export function RegisterScreen({ onLogin, onSubmit }: Props) {
   const [pw, setPw] = useState('');
   const [show, setShow] = useState(false);
   const [accept, setAccept] = useState(true);
+  const [isDriver, setIsDriver] = useState(false);
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [topError, setTopError] = useState<string | null>(null);
@@ -67,6 +68,7 @@ export function RegisterScreen({ onLogin, onSubmit }: Props) {
         password: pw,
         fullName: name.trim(),
         phone: phone.trim() || undefined,
+        role: isDriver ? 'driver' : 'parent',
       });
       if (result.needsEmailConfirmation) {
         Alert.alert(
@@ -219,23 +221,45 @@ export function RegisterScreen({ onLogin, onSubmit }: Props) {
         />
         <FieldErrorText error={errors.password} />
 
-        <View
-          className="mt-[14px] p-[11px] rounded-xl flex-row items-start"
+        <Pressable
+          onPress={() => setIsDriver((v) => !v)}
+          className="mt-[14px] p-[12px] rounded-xl flex-row items-center"
           style={{
-            gap: 10,
-            backgroundColor: `${theme.base}10`,
+            gap: 12,
+            backgroundColor: isDriver ? `${theme.warm}1A` : theme.surface,
             borderWidth: 1,
-            borderColor: `${theme.base}26`,
+            borderColor: isDriver ? `${theme.warm}55` : theme.line,
           }}
         >
-          <View style={{ marginTop: 1 }}>
-            <Icon name="user" size={14} color={theme.base} />
+          <View
+            style={{
+              width: 38,
+              height: 22,
+              borderRadius: 11,
+              backgroundColor: isDriver ? theme.warm : theme.lineStrong,
+              justifyContent: 'center',
+              paddingHorizontal: 2,
+            }}
+          >
+            <View
+              style={{
+                width: 18,
+                height: 18,
+                borderRadius: 9,
+                backgroundColor: '#fff',
+                alignSelf: isDriver ? 'flex-end' : 'flex-start',
+              }}
+            />
           </View>
-          <Text className="flex-1 text-[11px] text-ink-muted leading-[16px]">
-            Sua conta será criada como <Text className="font-semibold text-ink">responsável</Text>.
-            A escola define os demais perfis.
-          </Text>
-        </View>
+          <View className="flex-1">
+            <Text className="text-[13px] font-bold text-ink">Sou motorista</Text>
+            <Text className="text-[11px] text-ink-muted mt-[1px] leading-[15px]">
+              {isDriver
+                ? 'Sua conta vai poder criar rotas e gerar códigos de convite.'
+                : 'Marque se você dirige uma van escolar.'}
+            </Text>
+          </View>
+        </Pressable>
 
         <View className="mt-[14px] flex-row items-start" style={{ gap: 10 }}>
           <Pressable

@@ -30,17 +30,17 @@ function buildTrips(kids: MyKid[]): Trip[] {
   }
 
   const ordered = [...byRoute.values()].sort((a, b) =>
-    (a.route?.period ?? '').localeCompare(b.route?.period ?? ''),
+    (a.route?.direction ?? '').localeCompare(b.route?.direction ?? ''),
   );
 
   return ordered.map(({ kids: rKids, route }, idx) => {
-    const isMorning = route?.period === 'morning';
+    const isPickup = route?.direction === 'pickup';
     const start = formatTime(route?.pickup_start);
     const end = formatTime(route?.arrival_time);
     const school = rKids[0]?.route?.school?.name ?? 'Escola';
     const firstPickup = rKids.map((k) => k.pickup?.address).find(Boolean) ?? '—';
     return {
-      period: isMorning ? 'Manhã · Embarque' : 'Tarde · Desembarque',
+      period: isPickup ? 'Embarque · pra escola' : 'Desembarque · pra casa',
       time: start && end ? `${start} – ${end}` : start || end || '—',
       status: idx === 0 ? 'A CAMINHO' : 'AGENDADO',
       statusTone: idx === 0 ? 'base' : 'muted',
@@ -48,8 +48,8 @@ function buildTrips(kids: MyKid[]): Trip[] {
         n: k.short_name ?? k.full_name,
         c: k.color ?? '#888',
       })),
-      from: isMorning ? firstPickup : school,
-      to: isMorning ? school : firstPickup,
+      from: isPickup ? firstPickup : school,
+      to: isPickup ? school : firstPickup,
       eta: end ? `Prev. ${end}` : 'Horário a definir',
       highlight: idx === 0,
     };

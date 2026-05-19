@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, Pressable } from 'react-native';
 import { theme } from '../theme';
 import { MapView } from '../components/MapView';
@@ -7,6 +7,7 @@ import { Icon } from '../components/Icon';
 import { useMyKids } from '../lib/kids';
 import { useRouteDetail } from '../lib/routes';
 import { useProfile } from '../lib/profile';
+import { useActiveTrip } from '../lib/trip';
 
 const CARD_SHADOW = {
   shadowColor: '#000',
@@ -46,33 +47,25 @@ export function TrackingScreen() {
   }, [chips, selectedKey]);
 
   const { data: route } = useRouteDetail(selected?.routeId);
+  const { data: trip } = useActiveTrip(selected?.routeId);
   const greeting = profile?.full_name?.split(' ')[0] ?? '';
 
-  const [progress, setProgress] = useState(0.55);
-  const [playing, setPlaying] = useState(true);
-  const lastRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    if (!playing) return;
-    let raf: number;
-    lastRef.current = null;
-    const tick = (now: number) => {
-      const last = lastRef.current ?? now;
-      const dt = (now - last) / 1000;
-      lastRef.current = now;
-      setProgress((p) => {
-        const next = p + dt * 0.025;
-        if (next >= 0.95) {
-          setPlaying(false);
-          return 0.95;
-        }
-        return next;
-      });
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [playing]);
+  const tripActive = !!trip;
+  // Progress is derived from how many distinct kids have a boarded/dropped
+  // event vs. how many kid-stops the route has. Falls back to 0 when idle.
+  const kidStopsCount = (route?.stops ?? []).filter((s) => !s.is_destination).length || 1;
+  const eventKidCount = trip
+    ? new Set(
+        trip.events
+          .filter((e) => e.event === 'boarded' || e.event === 'dropped')
+          .map((e) => e.kid_id),
+      ).size
+    : 0;
+  // The animation moves between ~0.05 (start) and ~0.95 (end). Map progress
+  // proportionally so the van glides along the simulated path.
+  const progress = tripActive
+    ? Math.min(0.95, 0.05 + 0.9 * (eventKidCount / kidStopsCount))
+    : 0;
 
   const stops = route?.stops ?? [];
   const eta = Math.max(1, Math.round((1 - progress) * 24));
@@ -93,7 +86,11 @@ export function TrackingScreen() {
               Bom dia{greeting ? `, ${greeting}` : ''}
             </Text>
             <Text className="text-[22px] font-bold text-ink tracking-[-0.5px] mt-[2px]">
-              {route ? 'A van está a caminho' : 'Sem viagens ativas'}
+              {tripActive
+                ? 'A van está a caminho'
+                : route
+                  ? 'Sem viagens ativas'
+                  : 'Nenhuma rota vinculada'}
             </Text>
           </View>
           <View className="w-[38px] h-[38px] rounded-full bg-surface border border-line items-center justify-center">
@@ -152,36 +149,29 @@ export function TrackingScreen() {
       <View className="mx-4 rounded-3xl overflow-hidden bg-map-bg">
         <MapView progress={progress} height={300} />
 
-        {/* ETA badge */}
-        <View
-          className="absolute top-[14px] left-[14px] py-2 px-3 bg-surface rounded-2xl flex-row items-center gap-[10px]"
-          style={CARD_SHADOW}
-        >
+        {/* ETA badge — shown only when there's an active trip */}
+        {tripActive && (
           <View
-            className="w-[34px] h-[34px] rounded-[10px] items-center justify-center"
-            style={{ backgroundColor: `${theme.base}1A` }}
+            className="absolute top-[14px] left-[14px] py-2 px-3 bg-surface rounded-2xl flex-row items-center gap-[10px]"
+            style={CARD_SHADOW}
           >
-            <Icon name="car" size={18} color={theme.base} />
+            <View
+              className="w-[34px] h-[34px] rounded-[10px] items-center justify-center"
+              style={{ backgroundColor: `${theme.base}1A` }}
+            >
+              <Icon name="car" size={18} color={theme.base} />
+            </View>
+            <View>
+              <Text className="text-[10px] text-ink-muted font-semibold uppercase tracking-[0.4px]">
+                Chegada em
+              </Text>
+              <Text className="text-lg font-bold text-ink tracking-[-0.4px]">
+                {eta} min{' '}
+                <Text className="text-xs text-ink-muted font-medium">· {distance} km</Text>
+              </Text>
+            </View>
           </View>
-          <View>
-            <Text className="text-[10px] text-ink-muted font-semibold uppercase tracking-[0.4px]">
-              Chegada em
-            </Text>
-            <Text className="text-lg font-bold text-ink tracking-[-0.4px]">
-              {eta} min{' '}
-              <Text className="text-xs text-ink-muted font-medium">· {distance} km</Text>
-            </Text>
-          </View>
-        </View>
-
-        {/* play/pause */}
-        <Pressable
-          onPress={() => setPlaying((p) => !p)}
-          className="absolute top-[14px] right-[14px] w-9 h-9 rounded-full bg-surface items-center justify-center"
-          style={{ shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2 }}
-        >
-          <Icon name={playing ? 'pause' : 'play'} size={16} color={theme.text} />
-        </Pressable>
+        )}
 
         {/* driver card */}
         <View
@@ -230,7 +220,19 @@ export function TrackingScreen() {
         {stops.map((s, i) => {
           const done = i < progress * Math.max(1, totalStops - 2);
           const now = i === currentIdx;
-          const stopLabel = s.label || s.kid_names[0] || s.address;
+          const isYou = s.kid_id && s.kid_id === selected?.kidId;
+          // Compute the position number among kid stops (ignoring the school destination).
+          const kidIndex = stops.slice(0, i).filter((x) => !x.is_destination).length;
+          const stopLabel = isYou
+            ? `${s.label ?? s.kid_names[0] ?? 'Você'} (você)`
+            : s.is_anonymous
+              ? `Parada ${kidIndex + 1}`
+              : s.label || s.kid_names[0] || s.address;
+          const subLabel = isYou
+            ? s.address
+            : s.is_anonymous
+              ? null
+              : s.address;
           const timeLabel = s.scheduled_time ? formatTime(s.scheduled_time) : '';
           return (
             <View key={s.id} className="flex-row items-center gap-[14px] py-2">
@@ -240,7 +242,7 @@ export function TrackingScreen() {
                   style={{
                     backgroundColor: done ? theme.success : now ? theme.warm : theme.surface,
                     borderWidth: done ? 0 : 2,
-                    borderColor: now ? theme.warm : theme.lineStrong,
+                    borderColor: now ? theme.warm : isYou ? theme.base : theme.lineStrong,
                   }}
                 />
                 {i < stops.length - 1 && (
@@ -254,13 +256,21 @@ export function TrackingScreen() {
                 <Text
                   className="text-sm"
                   style={{
-                    fontWeight: now ? '700' : '500',
-                    color: done ? theme.textMuted : theme.text,
+                    fontWeight: isYou || now ? '700' : '500',
+                    color: s.is_anonymous
+                      ? theme.textMuted
+                      : done
+                        ? theme.textMuted
+                        : isYou
+                          ? theme.base
+                          : theme.text,
                   }}
                 >
                   {stopLabel}
                 </Text>
-                <Text className="text-[11px] text-ink-faint">{s.address}</Text>
+                {subLabel && (
+                  <Text className="text-[11px] text-ink-faint">{subLabel}</Text>
+                )}
               </View>
               <View className="items-end">
                 <Text

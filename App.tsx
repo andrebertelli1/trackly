@@ -11,7 +11,7 @@ import { ForgotPasswordScreen } from './src/screens/ForgotPasswordScreen';
 import { ResetPasswordScreen } from './src/screens/ResetPasswordScreen';
 import { InviteCodeScreen } from './src/screens/InviteCodeScreen';
 import { AddKidScreen } from './src/screens/AddKidScreen';
-import { PickKidForRouteScreen } from './src/screens/PickKidForRouteScreen';
+import { PickKidForVanScreen } from './src/screens/PickKidForVanScreen';
 import type { ValidatedInvite } from './src/lib/invite';
 import { TrackingScreen } from './src/screens/TrackingScreen';
 import { ScheduleScreen } from './src/screens/ScheduleScreen';
@@ -21,10 +21,15 @@ import { ProfileScreen } from './src/screens/ProfileScreen';
 import { DriverRouteScreen } from './src/screens/driver/DriverRouteScreen';
 import { DriverCheckinScreen } from './src/screens/driver/DriverCheckinScreen';
 import { DriverProfileScreen } from './src/screens/driver/DriverProfileScreen';
+import { CreateVanScreen } from './src/screens/driver/CreateVanScreen';
+import { MyVansScreen } from './src/screens/driver/MyVansScreen';
+import { EditVanScreen } from './src/screens/driver/EditVanScreen';
+import { AddUnregisteredKidScreen } from './src/screens/driver/AddUnregisteredKidScreen';
 import { TabBar } from './src/components/TabBar';
 import { DriverTabBar } from './src/components/DriverTabBar';
 import { FadeIn } from './src/components/FadeIn';
 import { AuthProvider, useAuth } from './src/lib/auth';
+import { useProfile } from './src/lib/profile';
 import { queryClient, asyncStoragePersister } from './src/lib/queryClient';
 import { theme } from './src/theme';
 
@@ -35,13 +40,18 @@ type Flow =
   | 'forgot'
   | 'invite'              // anonymous (from Welcome) — validates a code before signup
   | 'inviteFromProfile'   // authenticated — full validate + pick + link flow
-  | 'pickKidForRoute'     // post-validate: pick which of the parent's kids to attach
+  | 'pickKidForVan'     // post-validate: pick which of the parent's kids to attach
   | 'addKid'              // standalone "add a kid" form
   | 'parent'
-  | 'driver';
+  | 'driver'
+  | 'myVans'            // driver: list + manage routes/codes
+  | 'createVan'         // driver: form to add a new van
+  | 'editVan'           // driver: edit van + see kids on it
+  | 'addUnregisteredKid'; // driver: form to add a kid whose parent isn't in the app
 
 function Root() {
   const { session, loading, recoveryMode } = useAuth();
+  const { data: profile } = useProfile();
   const [flow, setFlow] = useState<Flow>('welcome');
   const [parentTab, setParentTab] = useState('track');
   const [driverTab, setDriverTab] = useState('route');
@@ -52,6 +62,14 @@ function Root() {
   const [pendingInvite, setPendingInvite] = useState<ValidatedInvite | null>(null);
   /** Where to return after AddKid (the picker, the profile, etc.). */
   const [addKidReturn, setAddKidReturn] = useState<Flow>('parent');
+  /** Trip the driver just started; carried Rota → Check-in. */
+  const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
+  /** Where to return after CreateVan (driver Rota tab, or MyVans list). */
+  const [createVanReturn, setCreateVanReturn] = useState<Flow>('myVans');
+  /** Which van is being edited. */
+  const [editingVanId, setEditingVanId] = useState<string | null>(null);
+  /** Van id the driver is adding an unregistered kid to. */
+  const [addUnregisteredVanId, setAddUnregisteredVanId] = useState<string | null>(null);
 
   useEffect(() => {
     const show = Keyboard.addListener('keyboardWillShow', () => setKeyboardUp(true));
@@ -66,12 +84,30 @@ function Root() {
     };
   }, []);
 
-  // When auth state changes, jump straight into / out of the parent flow.
+  // When auth state changes, route based on profile role:
+  //   driver → driver flow; everyone else → parent flow.
+  // The "Modo motorista (demo)" link still lets unauth'd users peek at the
+  // driver flow with the mocked tabs.
   useEffect(() => {
     if (loading) return;
-    if (session) setFlow((f) => (f === 'driver' ? f : 'parent'));
-    else setFlow('welcome');
-  }, [session, loading]);
+    if (!session) {
+      setFlow('welcome');
+      return;
+    }
+    const target: Flow = profile?.role === 'driver' ? 'driver' : 'parent';
+    setFlow((f) => {
+      // Don't yank the user out of mid-flow side screens (myVans, createVan, etc.).
+      const sideScreens: Flow[] = [
+        'addKid',
+        'pickKidForVan',
+        'inviteFromProfile',
+        'myVans',
+        'createVan',
+      ];
+      if (sideScreens.includes(f)) return f;
+      return target;
+    });
+  }, [session, loading, profile?.role]);
 
   if (loading) {
     return (
@@ -128,7 +164,7 @@ function Root() {
               // If they came in via Welcome → Invite → Register, drop them into the
               // kid picker now that they have a session. Otherwise → parent flow.
               if (pendingInvite && pendingInviteCode) {
-                setFlow('pickKidForRoute');
+                setFlow('pickKidForVan');
               } else {
                 setFlow('parent');
               }
@@ -160,14 +196,14 @@ function Root() {
             onContinue={(code, invite) => {
               setPendingInviteCode(code);
               setPendingInvite(invite);
-              setFlow('pickKidForRoute');
+              setFlow('pickKidForVan');
             }}
           />
         </FadeIn>
       )}
-      {flow === 'pickKidForRoute' && pendingInvite && pendingInviteCode && (
-        <FadeIn key="pickKidForRoute">
-          <PickKidForRouteScreen
+      {flow === 'pickKidForVan' && pendingInvite && pendingInviteCode && (
+        <FadeIn key="pickKidForVan">
+          <PickKidForVanScreen
             code={pendingInviteCode}
             invite={pendingInvite}
             onBack={() => {
@@ -176,7 +212,7 @@ function Root() {
               setFlow(session ? 'parent' : 'welcome');
             }}
             onAddKid={() => {
-              setAddKidReturn('pickKidForRoute');
+              setAddKidReturn('pickKidForVan');
               setFlow('addKid');
             }}
             onLinked={() => {
@@ -218,12 +254,90 @@ function Root() {
       {flow === 'driver' && (
         <>
           <FadeIn key={`driver-${driverTab}`} translate={6} duration={180}>
-            {driverTab === 'route' && <DriverRouteScreen />}
-            {driverTab === 'checkin' && <DriverCheckinScreen />}
-            {driverTab === 'profile' && <DriverProfileScreen />}
+            {driverTab === 'route' && (
+              <DriverRouteScreen
+                onOpenCheckin={(tripId) => {
+                  setSelectedTripId(tripId);
+                  setDriverTab('checkin');
+                }}
+                onCreate={() => {
+                  setCreateVanReturn('driver');
+                  setFlow('createVan');
+                }}
+              />
+            )}
+            {driverTab === 'checkin' && (
+              <DriverCheckinScreen
+                selectedTripId={selectedTripId}
+                onSelectedTripCleared={() => {
+                  setSelectedTripId(null);
+                  setDriverTab('route');
+                }}
+              />
+            )}
+            {driverTab === 'profile' && (
+              <DriverProfileScreen onOpenRoutes={() => setFlow('myVans')} />
+            )}
           </FadeIn>
           {!keyboardUp && <DriverTabBar active={driverTab} onTab={setDriverTab} />}
         </>
+      )}
+      {flow === 'myVans' && (
+        <FadeIn key="myVans">
+          <MyVansScreen
+            onBack={() => setFlow('driver')}
+            onCreate={() => {
+              setCreateVanReturn('myVans');
+              setFlow('createVan');
+            }}
+            onEdit={(vanId) => {
+              setEditingVanId(vanId);
+              setFlow('editVan');
+            }}
+          />
+        </FadeIn>
+      )}
+      {flow === 'createVan' && (
+        <FadeIn key="createVan">
+          <CreateVanScreen
+            onBack={() => setFlow(createVanReturn)}
+            onCreated={() => setFlow(createVanReturn)}
+          />
+        </FadeIn>
+      )}
+      {flow === 'editVan' && editingVanId && (
+        <FadeIn key={`editVan-${editingVanId}`}>
+          <EditVanScreen
+            vanId={editingVanId}
+            onBack={() => {
+              setEditingVanId(null);
+              setFlow('myVans');
+            }}
+            onDone={() => {
+              setEditingVanId(null);
+              setFlow('myVans');
+            }}
+            onAddUnregistered={(vanId) => {
+              setAddUnregisteredVanId(vanId);
+              setFlow('addUnregisteredKid');
+            }}
+          />
+        </FadeIn>
+      )}
+      {flow === 'addUnregisteredKid' && addUnregisteredVanId && (
+        <FadeIn key={`addUnregistered-${addUnregisteredVanId}`}>
+          <AddUnregisteredKidScreen
+            vanId={addUnregisteredVanId}
+            onBack={() => {
+              setAddUnregisteredVanId(null);
+              setFlow('editVan');
+            }}
+            onCreated={() => {
+              setAddUnregisteredVanId(null);
+              setFlow('editVan');
+            }}
+          />
+        </FadeIn>
       )}
     </KeyboardAvoidingView>
   );

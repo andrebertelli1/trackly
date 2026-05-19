@@ -1,302 +1,373 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable, Modal } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, Text, ScrollView, Pressable, Alert } from 'react-native';
 import { theme } from '../../theme';
-import { ROSTER, type RosterKid } from '../../data';
 import { Avatar } from '../../components/Avatar';
 import { Icon } from '../../components/Icon';
+import { PressScale } from '../../components/PressScale';
+import { useMyVans } from '../../lib/driver';
+import {
+  useMyActiveTrips,
+  useFinishTrip,
+  useKidsOnRoute,
+  useRecordKidEvent,
+  reduceKidState,
+  type KidOnRoute,
+  type KidState,
+  type TripEventKind,
+} from '../../lib/trip';
 
-type Status = 'waiting' | 'on' | 'off' | 'noshow';
+type Props = {
+  /** Trip the driver just started; if null, fall back to whatever's active. */
+  selectedTripId: string | null;
+  onSelectedTripCleared?: () => void;
+};
 
-const SHEET_OPTIONS: { icon: 'bolt' | 'route' | 'shield'; label: string; danger?: boolean }[] = [
-  { icon: 'bolt', label: 'Avisar responsáveis sobre atraso' },
-  { icon: 'route', label: 'Reportar desvio' },
-  { icon: 'shield', label: 'Emergência / SOS', danger: true },
-];
+export function DriverCheckinScreen({ selectedTripId, onSelectedTripCleared }: Props) {
+  const { data: vans = [] } = useMyVans();
+  const { data: trips = [], isLoading } = useMyActiveTrips();
 
-export function DriverCheckinScreen() {
-  const [statuses, setStatuses] = useState<Status[]>(['on', 'on', 'waiting', 'waiting', 'waiting']);
-  const [confirm, setConfirm] = useState<number | null>(null);
-  const [showSheet, setShowSheet] = useState(false);
+  const routeIds = useMemo(
+    () => vans.flatMap((v) => v.routes.map((r) => r.id)),
+    [vans],
+  );
 
-  const set = (i: number, v: Status) => {
-    setStatuses((s) => s.map((x, idx) => (idx === i ? v : x)));
-    setConfirm(i);
-    setTimeout(() => setConfirm((c) => (c === i ? null : c)), 1400);
-  };
-
-  const onCount = statuses.filter((s) => s === 'on').length;
-  const nextIdx = statuses.findIndex((s) => s === 'waiting');
-  const nextKid = nextIdx >= 0 ? ROSTER[nextIdx] : null;
+  // Pick which trip to display: selectedTripId wins if it's still active;
+  // otherwise the most-recently-started trip.
+  const visibleTrip = useMemo(() => {
+    if (!trips.length) return null;
+    if (selectedTripId) {
+      const match = trips.find((t) => t.id === selectedTripId);
+      if (match) return match;
+    }
+    return trips[0]!;
+  }, [trips, selectedTripId]);
 
   return (
     <View className="flex-1 bg-canvas">
-      <View className="px-5 pt-1 pb-3 flex-row items-center justify-between">
-        <View>
-          <Text className="text-[11px] text-ink-muted font-bold uppercase tracking-[0.5px]">
-            Embarque da manhã · Van VK-32
-          </Text>
-          <Text className="text-[22px] font-bold text-ink tracking-[-0.5px] mt-[2px]">Check-in</Text>
-        </View>
-        <View
-          className="py-1 px-[10px] rounded-full"
-          style={{ backgroundColor: `${theme.success}22` }}
-        >
-          <Text className="text-[11px] font-bold text-success tracking-[0.3px]">
-            {onCount}/{ROSTER.length} EMBARCADOS
-          </Text>
-        </View>
+      <View className="px-5 pt-1 pb-3">
+        <Text className="text-[22px] font-bold text-ink tracking-[-0.5px]">Check-in</Text>
       </View>
-
-      <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 16 }}>
-        {nextKid ? (
-          <View
-            className="mx-4 mb-[14px] rounded-[22px] overflow-hidden bg-brand"
-            style={{
-              shadowColor: theme.base,
-              shadowOpacity: 0.25,
-              shadowRadius: 32,
-              shadowOffset: { width: 0, height: 12 },
-              elevation: 6,
-            }}
-          >
-            <View className="px-[18px] pt-4 flex-row items-center gap-3">
-              <Avatar name={nextKid.name} size={52} bg={nextKid.color} />
-              <View className="flex-1">
-                <Text className="text-white/85 text-[10px] font-bold tracking-[0.8px]">
-                  PRÓX. · {nextKid.time}
-                </Text>
-                <Text className="text-white text-[19px] font-bold tracking-[-0.4px]">
-                  {nextKid.name}
-                </Text>
-                <Text className="text-white/85 text-xs">{nextKid.addr}</Text>
-              </View>
-              <View className="w-[38px] h-[38px] rounded-full bg-white/20 items-center justify-center">
-                <Icon name="phone" size={16} color="#fff" />
-              </View>
-            </View>
-            <View className="flex-row gap-2 px-[18px] pt-[14px] pb-[18px]">
-              <Pressable
-                onPress={() => set(nextIdx, 'on')}
-                className="flex-[2] py-[14px] rounded-[14px] bg-white flex-row items-center justify-center gap-2"
-              >
-                <Icon name="check" size={18} color={theme.base} />
-                <Text className="text-[15px] font-bold tracking-[-0.2px]" style={{ color: theme.base }}>
-                  Embarcar
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => set(nextIdx, 'noshow')}
-                className="flex-1 py-[14px] px-[10px] rounded-[14px] bg-white/20 items-center justify-center"
-              >
-                <Text className="text-white text-[13px] font-semibold">Faltou</Text>
-              </Pressable>
-            </View>
-          </View>
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
+      >
+        {routeIds.length === 0 ? (
+          <EmptyState message="Nenhuma rota cadastrada. Crie uma van na aba Perfil." />
+        ) : !visibleTrip ? (
+          <EmptyState
+            message={
+              isLoading
+                ? 'Carregando…'
+                : 'Nenhuma viagem em andamento. Inicie uma na aba Rota.'
+            }
+          />
         ) : (
-          <View
-            className="mx-4 mb-[14px] py-[18px] px-[18px] rounded-[22px] flex-row items-center gap-[14px] bg-success"
-            style={{
-              shadowColor: theme.success,
-              shadowOpacity: 0.25,
-              shadowRadius: 32,
-              shadowOffset: { width: 0, height: 12 },
-              elevation: 6,
-            }}
-          >
-            <View className="w-[46px] h-[46px] rounded-full bg-white/20 items-center justify-center">
-              <Icon name="check" size={26} color="#fff" />
-            </View>
-            <View className="flex-1">
-              <Text className="text-white text-[17px] font-bold tracking-[-0.3px]">
-                Todos embarcados!
+          <>
+            {trips.length > 1 && (
+              <Text className="mb-2 text-[11px] text-ink-faint">
+                Você tem {trips.length} viagens em andamento — mostrando a mais recente.
               </Text>
-              <Text className="text-white/90 text-xs">
-                A caminho da Escola Greenfield · Prev. 8:42
-              </Text>
-            </View>
-          </View>
+            )}
+            <ActiveTripCard
+              tripId={visibleTrip.id}
+              routeId={visibleTrip.route_id}
+              startedAt={visibleTrip.started_at}
+              events={visibleTrip.events}
+              onCleared={onSelectedTripCleared}
+            />
+          </>
         )}
-
-        <View className="px-4">
-          <Text className="text-[11px] text-ink-muted font-bold uppercase tracking-[0.6px] mx-[6px] mb-2 mt-1">
-            Lista
-          </Text>
-          <View className="gap-2">
-            {ROSTER.map((k, i) => (
-              <RosterRow
-                key={i}
-                k={k}
-                status={statuses[i]!}
-                flash={confirm === i}
-                onBoard={() => set(i, 'on')}
-                onDrop={() => set(i, 'off')}
-                onNoshow={() => set(i, 'noshow')}
-                onUndo={() => set(i, 'waiting')}
-              />
-            ))}
-          </View>
-
-          <View className="mt-4 flex-row gap-2">
-            <Pressable
-              onPress={() => setShowSheet(true)}
-              className="flex-1 py-3 rounded-xl bg-surface border border-line flex-row items-center justify-center gap-2"
-            >
-              <Icon name="menu" size={16} color={theme.text} />
-              <Text className="text-ink text-[13px] font-semibold">Opções da viagem</Text>
-            </Pressable>
-            <Pressable
-              onPress={() =>
-                setStatuses(['waiting', 'waiting', 'waiting', 'waiting', 'waiting'])
-              }
-              className="py-3 px-[14px] rounded-xl border border-line"
-            >
-              <Text className="text-ink-muted text-[13px] font-semibold">Resetar</Text>
-            </Pressable>
-          </View>
-        </View>
       </ScrollView>
-
-      <Modal visible={showSheet} transparent animationType="slide" onRequestClose={() => setShowSheet(false)}>
-        <Pressable className="flex-1 bg-black/45 justify-end" onPress={() => setShowSheet(false)}>
-          <Pressable
-            onPress={(e) => e.stopPropagation()}
-            className="bg-surface rounded-t-[22px] px-4 pt-[10px] pb-7"
-          >
-            <View className="w-9 h-1 rounded-sm bg-line-strong self-center mt-1 mb-[14px]" />
-            <Text className="text-base font-bold text-ink mb-[10px]">Opções da viagem</Text>
-            {SHEET_OPTIONS.map((o, i) => (
-              <View
-                key={i}
-                className="flex-row items-center gap-3 py-[13px] px-1"
-                style={{ borderTopWidth: i ? 1 : 0, borderTopColor: theme.line }}
-              >
-                <Icon name={o.icon} size={20} color={o.danger ? theme.danger : theme.text} />
-                <Text
-                  className="flex-1 text-sm font-semibold"
-                  style={{ color: o.danger ? theme.danger : theme.text }}
-                >
-                  {o.label}
-                </Text>
-                <Icon name="chevron" size={16} color={theme.textFaint} />
-              </View>
-            ))}
-          </Pressable>
-        </Pressable>
-      </Modal>
     </View>
   );
 }
 
-type RowProps = {
-  k: RosterKid;
-  status: Status;
-  flash: boolean;
-  onBoard: () => void;
-  onDrop: () => void;
-  onNoshow: () => void;
-  onUndo: () => void;
-};
+function ActiveTripCard({
+  tripId,
+  routeId,
+  startedAt,
+  events,
+  onCleared,
+}: {
+  tripId: string;
+  routeId: string;
+  startedAt: string;
+  events: { id: string; kid_id: string; event: TripEventKind; created_at: string }[];
+  onCleared?: () => void;
+}) {
+  const { data: vans = [] } = useMyVans();
+  const { data: kids = [], isLoading } = useKidsOnRoute(routeId);
+  const recordEvent = useRecordKidEvent();
+  const finish = useFinishTrip();
 
-function RosterRow({ k, status, flash, onBoard, onDrop, onNoshow, onUndo }: RowProps) {
-  const palette =
-    status === 'waiting'
-      ? { bg: theme.surface, border: theme.line, badgeBg: theme.surfaceAlt, badgeFg: theme.textMuted, label: 'AGUARDANDO' }
-      : status === 'on'
-        ? { bg: theme.surface, border: `${theme.success}55`, badgeBg: `${theme.success}1A`, badgeFg: theme.success, label: 'EMBARCADO' }
-        : status === 'off'
-          ? { bg: theme.surfaceAlt, border: theme.line, badgeBg: `${theme.base}1A`, badgeFg: theme.base, label: 'DESEMBARCADO' }
-          : { bg: theme.surface, border: `${theme.danger}40`, badgeBg: `${theme.danger}18`, badgeFg: theme.danger, label: 'FALTOU' };
+  // Tick every minute to keep the elapsed-time fresh.
+  const [, force] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => force((n) => n + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Resolve route metadata.
+  const meta = useMemo(() => {
+    for (const v of vans) {
+      for (const r of v.routes) {
+        if (r.id === routeId) {
+          return {
+            vanLabel: v.van_label,
+            schoolName: v.school?.name ?? null,
+            direction: r.direction,
+          };
+        }
+      }
+    }
+    return null;
+  }, [vans, routeId]);
+
+  const direction = meta?.direction ?? 'pickup';
+  const elapsedMin = Math.max(
+    0,
+    Math.round((Date.now() - new Date(startedAt).getTime()) / 60000),
+  );
+
+  const handleEvent = async (kid_id: string, kind: TripEventKind) => {
+    try {
+      await recordEvent.mutateAsync({ trip_id: tripId, kid_id, event: kind });
+    } catch (e) {
+      Alert.alert('Erro', (e as Error).message);
+    }
+  };
+
+  const handleFinish = () =>
+    Alert.alert(
+      'Finalizar viagem?',
+      'Esta ação encerra o check-in. Pais deixarão de ver a viagem como ativa.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Finalizar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await finish.mutateAsync(tripId);
+              onCleared?.();
+            } catch (e) {
+              Alert.alert('Erro ao finalizar', (e as Error).message);
+            }
+          },
+        },
+      ],
+    );
+
+  return (
+    <View>
+      <View
+        className="mt-2 p-4 rounded-[18px]"
+        style={{
+          backgroundColor: `${theme.success}10`,
+          borderWidth: 1,
+          borderColor: `${theme.success}40`,
+        }}
+      >
+        <View className="flex-row items-center" style={{ gap: 12 }}>
+          <View
+            className="items-center justify-center"
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 13,
+              backgroundColor: `${theme.success}22`,
+            }}
+          >
+            <Icon name="route" size={22} color={theme.success} />
+          </View>
+          <View className="flex-1">
+            <Text className="text-[15px] font-bold text-ink tracking-[-0.2px]">
+              {meta ? `Van ${meta.vanLabel}` : 'Viagem em andamento'}
+              {meta && (
+                <Text className="font-medium text-ink-muted">
+                  {' · '}
+                  {direction === 'pickup' ? 'Embarque' : 'Desembarque'}
+                </Text>
+              )}
+            </Text>
+            <Text className="text-[12px] text-ink-muted mt-[1px]">
+              {meta?.schoolName ?? ''} · em andamento há {elapsedMin} min
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      <Text className="mt-4 mx-[6px] text-[11px] font-bold text-ink-muted uppercase tracking-[0.6px]">
+        Crianças
+      </Text>
+
+      {isLoading && (
+        <Text className="mt-2 mx-[6px] text-[13px] text-ink-muted">Carregando…</Text>
+      )}
+
+      {!isLoading && kids.length === 0 && (
+        <Text className="mt-2 mx-[6px] text-[13px] text-ink-muted">
+          Nenhuma criança vinculada a esta rota.
+        </Text>
+      )}
+
+      {kids.map((kid) => {
+        const state = reduceKidState(events, kid.id);
+        const address =
+          direction === 'pickup'
+            ? kid.pickup_address
+            : kid.dropoff_address ?? kid.pickup_address;
+        return (
+          <KidRow
+            key={kid.id}
+            kid={kid}
+            state={state}
+            direction={direction}
+            address={address}
+            onEvent={(e) => handleEvent(kid.id, e)}
+            busy={recordEvent.isPending}
+          />
+        );
+      })}
+
+      <Pressable
+        onPress={handleFinish}
+        disabled={finish.isPending}
+        className="mt-5 py-[14px] rounded-2xl items-center"
+        style={{ backgroundColor: `${theme.danger}18`, opacity: finish.isPending ? 0.6 : 1 }}
+      >
+        <Text className="text-[14px] font-bold" style={{ color: theme.danger }}>
+          {finish.isPending ? 'Finalizando…' : 'Finalizar viagem'}
+        </Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function KidRow({
+  kid,
+  state,
+  direction,
+  address,
+  onEvent,
+  busy,
+}: {
+  kid: KidOnRoute;
+  state: KidState;
+  direction: 'pickup' | 'dropoff';
+  address: string | null;
+  onEvent: (e: TripEventKind) => void;
+  busy: boolean;
+}) {
+  const badge = stateBadge(state);
+  const isPickup = direction === 'pickup';
+  const primaryEvent: TripEventKind = isPickup ? 'boarded' : 'dropped';
+  const primaryLabel = isPickup ? 'Embarcou' : 'Desembarcou';
+  const displayShort = kid.short_name ?? kid.full_name;
 
   return (
     <View
-      className="p-3 px-[14px] rounded-2xl"
-      style={{
-        backgroundColor: palette.bg,
-        borderWidth: 1,
-        borderColor: palette.border,
-        shadowColor: theme.success,
-        shadowOpacity: flash ? 0.2 : 0,
-        shadowRadius: 12,
-        shadowOffset: { width: 0, height: 0 },
-        elevation: flash ? 3 : 0,
-      }}
+      className="mt-2 p-3 rounded-2xl bg-surface"
+      style={{ borderWidth: 1, borderColor: theme.line }}
     >
-      <View className="flex-row items-center gap-3">
-        <View className="relative">
-          <Avatar name={k.name} size={42} bg={k.color} />
-          {status === 'on' && (
-            <View
-              className="absolute -bottom-[2px] -right-[2px] w-[18px] h-[18px] rounded-full bg-success items-center justify-center"
-              style={{ borderWidth: 2, borderColor: theme.surface }}
-            >
-              <Icon name="check" size={11} color="#fff" />
-            </View>
-          )}
-        </View>
+      <View className="flex-row items-center" style={{ gap: 12 }}>
+        <Avatar name={displayShort} size={38} bg={kid.color ?? '#888'} />
         <View className="flex-1">
-          <View className="flex-row items-center gap-2">
-            <Text className="text-sm font-bold text-ink">{k.name}</Text>
+          <View className="flex-row items-center" style={{ gap: 6, flexWrap: 'wrap' }}>
+            <Text className="text-[14px] font-bold text-ink">{kid.full_name}</Text>
             <View
-              className="py-[2px] px-[7px] rounded-full"
-              style={{ backgroundColor: palette.badgeBg }}
+              className="py-[2px] px-2 rounded-full"
+              style={{ backgroundColor: badge.bg }}
             >
-              <Text className="text-[10px] font-bold" style={{ color: palette.badgeFg }}>
-                {palette.label}
+              <Text
+                className="text-[10px] font-bold tracking-[0.3px]"
+                style={{ color: badge.fg }}
+              >
+                {badge.label}
               </Text>
             </View>
+            {kid.unregistered && (
+              <View
+                className="py-[2px] px-2 rounded-full"
+                style={{ backgroundColor: `${theme.warm}1A` }}
+              >
+                <Text
+                  className="text-[9px] font-bold tracking-[0.3px]"
+                  style={{ color: theme.warm }}
+                >
+                  NÃO CADASTRADA
+                </Text>
+              </View>
+            )}
           </View>
-          <Text className="text-[11px] text-ink-muted mt-[2px]">
-            {k.addr} · {k.time} · Resp.: {k.parent}
-          </Text>
+          {address && (
+            <Text className="text-[11px] text-ink-muted mt-[1px]" numberOfLines={1}>
+              {address}
+            </Text>
+          )}
         </View>
       </View>
 
-      <View className="mt-[10px] flex-row gap-[6px]">
-        {status === 'waiting' && (
+      <View className="mt-3 flex-row" style={{ gap: 8 }}>
+        {state === 'waiting' && (
           <>
-            <Pressable
-              onPress={onBoard}
-              className="flex-[2] py-[11px] rounded-[11px] bg-success flex-row items-center justify-center gap-[6px]"
+            <PressScale
+              onPress={() => onEvent(primaryEvent)}
+              disabled={busy}
+              style={{
+                flex: 2,
+                padding: 10,
+                backgroundColor: theme.success,
+                borderRadius: 11,
+                alignItems: 'center',
+              }}
             >
-              <Icon name="check" size={14} color="#fff" />
-              <Text className="text-white text-[13px] font-bold tracking-[-0.1px]">Embarcar</Text>
-            </Pressable>
+              <Text className="text-white text-[13px] font-bold">{primaryLabel}</Text>
+            </PressScale>
             <Pressable
-              onPress={onNoshow}
-              className="flex-1 py-[11px] rounded-[11px] bg-surface-alt items-center justify-center"
+              onPress={() => onEvent('noshow')}
+              disabled={busy}
+              className="flex-1 py-[10px] rounded-xl bg-surface-alt items-center"
             >
-              <Text className="text-ink-muted text-xs font-semibold">Faltou</Text>
+              <Text className="text-[12px] font-semibold text-ink-muted">Não veio</Text>
             </Pressable>
           </>
         )}
-        {status === 'on' && (
-          <>
-            <Pressable
-              onPress={onDrop}
-              className="flex-[2] py-[11px] rounded-[11px] items-center justify-center"
-              style={{ backgroundColor: `${theme.base}15` }}
-            >
-              <Text className="text-[13px] font-bold" style={{ color: theme.base }}>
-                Marcar desembarque
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={onUndo}
-              className="flex-1 py-[11px] rounded-[11px] border border-line items-center justify-center"
-            >
-              <Text className="text-ink-muted text-xs font-semibold">Desfazer</Text>
-            </Pressable>
-          </>
-        )}
-        {(status === 'off' || status === 'noshow') && (
+        {state !== 'waiting' && (
           <Pressable
-            onPress={onUndo}
-            className="flex-1 py-[10px] rounded-[11px] border border-line items-center justify-center"
+            onPress={() => onEvent('undo')}
+            disabled={busy}
+            className="flex-1 py-[10px] rounded-xl items-center"
+            style={{ borderWidth: 1, borderColor: theme.line }}
           >
-            <Text className="text-ink-muted text-xs font-semibold">Desfazer</Text>
+            <Text className="text-[12px] font-semibold text-ink-muted">Desfazer</Text>
           </Pressable>
         )}
       </View>
+    </View>
+  );
+}
+
+function stateBadge(state: KidState): { label: string; bg: string; fg: string } {
+  switch (state) {
+    case 'boarded':
+      return { label: 'A BORDO', bg: `${theme.success}1A`, fg: theme.success };
+    case 'dropped':
+      return { label: 'DESEMBARCOU', bg: `${theme.base}1A`, fg: theme.base };
+    case 'noshow':
+      return { label: 'NÃO VEIO', bg: `${theme.danger}1A`, fg: theme.danger };
+    default:
+      return { label: 'AGUARDANDO', bg: theme.surfaceAlt, fg: theme.textMuted };
+  }
+}
+
+function EmptyState({ message }: { message: string }) {
+  return (
+    <View
+      className="mt-2 p-4 rounded-[18px] bg-surface"
+      style={{ borderWidth: 1, borderStyle: 'dashed', borderColor: theme.lineStrong }}
+    >
+      <Text className="text-[13px] text-ink-muted leading-[18px]">{message}</Text>
     </View>
   );
 }

@@ -236,7 +236,7 @@ export function InviteCodeScreen({ onBack, onContinue }: Props) {
                     {result?.school?.name ?? 'Escola'}
                   </Text>
                   <Text className="text-[11px] text-ink-muted mt-[2px]">
-                    {[result?.school?.city, result?.route?.van_label && `Van ${result.route.van_label}`]
+                    {[result?.school?.city, result?.van?.label && `Van ${result.van.label}`]
                       .filter(Boolean)
                       .join(' · ') || 'Escola encontrada'}
                   </Text>

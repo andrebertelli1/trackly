@@ -1,8 +1,11 @@
 import React from 'react';
-import { View, Text, ScrollView, Pressable } from 'react-native';
+import { View, Text, ScrollView, Pressable, Alert } from 'react-native';
 import { theme } from '../../theme';
 import { Avatar } from '../../components/Avatar';
 import { Icon } from '../../components/Icon';
+import { useAuth } from '../../lib/auth';
+import { useProfile } from '../../lib/profile';
+import { useMyVans } from '../../lib/driver';
 
 const CREDS = [
   { label: 'CNH comercial', value: 'D · válida até 2027' },
@@ -11,7 +14,23 @@ const CREDS = [
   { label: 'Inspeção do veículo', value: 'VK-32 · aprovada' },
 ];
 
-export function DriverProfileScreen() {
+type Props = { onOpenRoutes?: () => void };
+
+export function DriverProfileScreen({ onOpenRoutes }: Props = {}) {
+  const { signOut } = useAuth();
+  const { data: profile } = useProfile();
+  const { data: vans = [] } = useMyVans();
+  const displayName = profile?.full_name ?? 'Motorista';
+  const totalKids = vans.reduce((acc, v) => acc + v.kid_count, 0);
+  const primaryVan = vans[0]?.van_label ?? null;
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+    } catch (e) {
+      Alert.alert('Erro ao sair', (e as Error).message);
+    }
+  };
   return (
     <View className="flex-1 bg-canvas">
       <View className="px-5 pt-1 pb-3">
@@ -33,10 +52,14 @@ export function DriverProfileScreen() {
           }}
         >
           <View className="flex-row gap-[14px] items-center">
-            <Avatar name="Marcus Tan" size={62} bg="#1A2B5A" />
+            <Avatar name={displayName} size={62} bg="#1A2B5A" />
             <View className="flex-1">
-              <Text className="text-white text-lg font-bold tracking-[-0.3px]">Marcus Tan</Text>
-              <Text className="text-white/85 text-xs">Van VK-32 · Rota Greenfield</Text>
+              <Text className="text-white text-lg font-bold tracking-[-0.3px]">{displayName}</Text>
+              <Text className="text-white/85 text-xs">
+                {primaryVan
+                  ? `Van ${primaryVan}${vans.length > 1 ? ` · +${vans.length - 1}` : ''}`
+                  : 'Nenhuma rota criada'}
+              </Text>
               <View className="mt-[6px] flex-row items-center gap-[6px]">
                 <Icon name="star" size={12} color={theme.warm} />
                 <Text className="text-white text-[13px] font-bold">4.92</Text>
@@ -45,11 +68,41 @@ export function DriverProfileScreen() {
             </View>
           </View>
           <View className="flex-row gap-[10px] mt-[18px]">
-            <KPI label="Hoje" value="5/6" sub="embarcados" />
+            <KPI label="Vans" value={`${vans.length}`} sub="ativas" />
+            <KPI label="Crianças" value={`${totalKids}`} sub="vinculadas" />
             <KPI label="Pontualidade" value="98%" sub="últ. 30d" />
-            <KPI label="Anos" value="4,5" sub="dirigindo" />
           </View>
         </View>
+
+        {/* Minhas rotas */}
+        <Pressable
+          onPress={onOpenRoutes}
+          className="mt-[18px] p-[14px] rounded-[18px] bg-surface flex-row items-center"
+          style={{ gap: 14, borderWidth: 1, borderColor: theme.line }}
+        >
+          <View
+            className="items-center justify-center"
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 13,
+              backgroundColor: `${theme.warm}1A`,
+            }}
+          >
+            <Icon name="bolt" size={22} color={theme.warm} />
+          </View>
+          <View className="flex-1">
+            <Text className="text-sm font-bold text-ink tracking-[-0.2px]">
+              Minhas vans e códigos
+            </Text>
+            <Text className="text-[11px] text-ink-muted mt-[2px] leading-[15px]">
+              {vans.length === 0
+                ? 'Crie sua primeira van'
+                : `${vans.length} ${vans.length === 1 ? 'van' : 'vans'} · gerar/compartilhar códigos`}
+            </Text>
+          </View>
+          <Icon name="chevron" size={16} color={theme.textFaint} />
+        </Pressable>
 
         <SectionLabel title="Credenciais" />
         <View className="bg-surface rounded-[18px] border border-line overflow-hidden">
@@ -101,11 +154,12 @@ export function DriverProfileScreen() {
         </View>
 
         <Pressable
+          onPress={handleSignOut}
           className="mt-[18px] py-[13px] rounded-[14px] items-center"
           style={{ backgroundColor: `${theme.danger}18` }}
         >
           <Text className="text-sm font-bold" style={{ color: theme.danger }}>
-            Encerrar turno
+            Sair da conta
           </Text>
         </Pressable>
       </ScrollView>

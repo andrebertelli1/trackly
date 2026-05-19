@@ -19,6 +19,8 @@ export class AuthError extends Error {
 
 export type SignUpResult = { needsEmailConfirmation: boolean };
 
+export type RequestedRole = 'parent' | 'driver';
+
 type AuthContextValue = {
   session: Session | null;
   user: User | null;
@@ -26,7 +28,13 @@ type AuthContextValue = {
   /** True while the user is in a password-recovery flow (opened the email link). */
   recoveryMode: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (params: { email: string; password: string; fullName: string; phone?: string }) => Promise<SignUpResult>;
+  signUp: (params: {
+    email: string;
+    password: string;
+    fullName: string;
+    phone?: string;
+    role?: RequestedRole;
+  }) => Promise<SignUpResult>;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
@@ -137,11 +145,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (error) throw mapAuthError(error.message);
       },
 
-      async signUp({ email, password, fullName, phone }) {
+      async signUp({ email, password, fullName, phone, role }) {
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
-          options: { data: { full_name: fullName, phone: phone ?? null } },
+          options: {
+            data: {
+              full_name: fullName,
+              phone: phone ?? null,
+              requested_role: role ?? 'parent',
+            },
+          },
         });
         if (error) throw mapAuthError(error.message);
         // With "Confirm email" enabled, Supabase returns a fake user with an
