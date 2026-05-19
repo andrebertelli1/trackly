@@ -70,10 +70,22 @@ Separate Next.js app living in `admin/`. Run independently from the Expo app.
 - `npm run build` — production build
 - `npm run typecheck` — `tsc --noEmit`
 
-Requires `admin/.env.local` with:
+Requires `admin/.env.local` (gitignored — configure manually on each machine):
 ```
-NEXT_PUBLIC_SUPABASE_URL=...
-SUPABASE_SERVICE_ROLE_KEY=...
+NEXT_PUBLIC_SUPABASE_URL=https://nxzdfzzmmjdivlpmhddo.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=<service_role_key_from_supabase_dashboard>
+```
+
+See `admin/.env.local.example` for the variable names. The service role key is in the Supabase dashboard under **Project Settings → API → service_role**.
+
+### Supabase CLI
+
+The project is linked to `nxzdfzzmmjdivlpmhddo`. To set up the CLI on a new machine:
+
+```bash
+npx supabase login          # opens browser, or use SUPABASE_ACCESS_TOKEN env var
+npx supabase link --project-ref nxzdfzzmmjdivlpmhddo
+npx supabase migration list # verify all migrations are in sync
 ```
 
 ### Stack
