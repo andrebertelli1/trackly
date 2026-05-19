@@ -60,6 +60,59 @@ Duplicated in `tailwind.config.js` (NativeWind class names like `bg-canvas`) and
 
 User-facing strings are pt-BR; code identifiers, file names, and comments stay English.
 
+## Admin dashboard (`admin/`)
+
+Separate Next.js app living in `admin/`. Run independently from the Expo app.
+
+### Commands
+
+- `npm run dev` — start dev server on port 3000 (run inside `admin/`)
+- `npm run build` — production build
+- `npm run typecheck` — `tsc --noEmit`
+
+Requires `admin/.env.local` with:
+```
+NEXT_PUBLIC_SUPABASE_URL=...
+SUPABASE_SERVICE_ROLE_KEY=...
+```
+
+### Stack
+
+Next.js 16 + React 19 + TypeScript + **Tailwind CSS v4** (config via `src/app/globals.css` `@theme` block, not `tailwind.config.js`). App Router with Server Components and Server Actions throughout. No client-side data fetching — all reads are server-side via `@supabase/supabase-js` with the **service role key** (bypasses RLS).
+
+### Architecture
+
+- `src/app/` — App Router pages: `/` (overview), `/schools`, `/routes`, `/routes/[id]`, `/kids`, `/drivers`, `/invite-codes`
+- `src/components/` — shared UI: `Modal`, `ModalActions`, `Button`, `SubmitButton`, `FormField`, `SelectField`, `Sidebar`, `Toast`, `StatusBadge`, `Avatar`, `EmptyState`, `PageSkeleton`
+- `src/lib/supabase.ts` — lazy singleton Supabase client (server-only, never import in `'use client'` files)
+- `src/lib/queries.ts` — **all data-fetching functions**, each wrapped in `unstable_cache` with tags; import from here instead of querying Supabase directly in pages
+- `src/app/**/actions.ts` — Server Actions for mutations; always call both `revalidateTag(tag)` and `revalidatePath(path)` after writes
+
+### Data / caching layer
+
+Pages use `export const revalidate = 30` (Full Route Cache) plus `unstable_cache` in `src/lib/queries.ts` (Data Cache). Cache tags map 1:1 to tables: `'schools'`, `'routes'`, `'kids'`, `'drivers'`, `'invite-codes'`. Dashboard stat queries carry all four tags so they invalidate on any mutation.
+
+`loading.tsx` files in every route provide instant skeleton feedback while server components render.
+
+After any mutation in a Server Action:
+```ts
+revalidateTag('schools')   // invalidates Data Cache entries tagged 'schools'
+revalidatePath('/schools') // invalidates Full Route Cache for the path
+```
+
+### Design tokens
+
+Defined in `src/app/globals.css` under `@theme`:
+`--color-canvas`, `--color-surface`, `--color-surface-alt`, `--color-ink`, `--color-ink-muted`, `--color-ink-faint`, `--color-line`, `--color-line-strong`, `--color-brand`, `--color-success`, `--color-danger`, `--color-warm` (plus `-light` variants).
+
+Fonts: `Inter` (sans) and `JetBrains Mono` (mono), loaded from Google Fonts in `layout.tsx`.
+
+### Notes
+
+- `Button` variant prop accepts only `'primary' | 'ghost' | 'quiet' | 'danger'` — no `'secondary'`
+- `Modal` uses native `<dialog>` with `showModal()` — always include `m-auto` on the element for cross-browser centering
+- Mock data in `src/lib/mock.ts` is used as fallback when Supabase is unreachable; the `try/catch` pattern in `queries.ts` ensures pages never hard-error
+
 ## Next iteration: driver app
 
 The parent flow is production-ready. The driver app still needs the same treatment. When picking this up:
